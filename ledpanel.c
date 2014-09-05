@@ -59,28 +59,28 @@ static void ledpanel_set_ABCD(unsigned char address)
 		gpio_set_value(LEDPANEL_D,1);
 } 
  
-static void ledpanel_pattern(void) 
+static void ledpanel_pattern(unsigned char red,unsigned char green,unsigned char blue) 
 {
 	int col;
 	
 	gpio_set_value(LEDPANEL_OE,1);	
 	for (col=0;col<16;col++) {
-		gpio_set_value(LEDPANEL_R0,0);
-		gpio_set_value(LEDPANEL_G0,1);
-		gpio_set_value(LEDPANEL_B0,0);
-		gpio_set_value(LEDPANEL_R1,0);
-		gpio_set_value(LEDPANEL_G1,0);
-		gpio_set_value(LEDPANEL_B1,1);
+		gpio_set_value(LEDPANEL_R0,red);
+		gpio_set_value(LEDPANEL_G0,green);
+		gpio_set_value(LEDPANEL_B0,blue);
+		gpio_set_value(LEDPANEL_R1,red);
+		gpio_set_value(LEDPANEL_G1,green);
+		gpio_set_value(LEDPANEL_B1,blue);
 		
 		gpio_set_value(LEDPANEL_CLK,1);
 		gpio_set_value(LEDPANEL_CLK,0);
 		
-		gpio_set_value(LEDPANEL_R0,1);
-		gpio_set_value(LEDPANEL_G0,0);
-		gpio_set_value(LEDPANEL_B0,0);
-		gpio_set_value(LEDPANEL_R1,1);
-		gpio_set_value(LEDPANEL_G1,0);
-		gpio_set_value(LEDPANEL_B1,0);
+		gpio_set_value(LEDPANEL_R0,red);
+		gpio_set_value(LEDPANEL_G0,green);
+		gpio_set_value(LEDPANEL_B0,blue);
+		gpio_set_value(LEDPANEL_R1,red);
+		gpio_set_value(LEDPANEL_G1,green);
+		gpio_set_value(LEDPANEL_B1,blue);
 		
 		gpio_set_value(LEDPANEL_CLK,1);
 		gpio_set_value(LEDPANEL_CLK,0);
@@ -103,51 +103,78 @@ static void ledpanel_pattern(void)
 static int ledpanel_gpio_init(void) {
 	int rtc;
 
+    rtc=gpio_request(LEDPANEL_OE,"oe");
+    if (rtc!=0) return -1;
     rtc=gpio_direction_output(LEDPANEL_OE,1);
+    if (rtc!=0) return -1;
+
+    rtc=gpio_request(LEDPANEL_CLK,"clk");
     if (rtc!=0) return -1;
     rtc=gpio_direction_output(LEDPANEL_CLK,0);
     if (rtc!=0) return -1;
+    
+    rtc=gpio_request(LEDPANEL_STB,"stb");
+    if (rtc!=0) return -1;
     rtc=gpio_direction_output(LEDPANEL_STB,0);
+    if (rtc!=0) return -1;
+
+    rtc=gpio_request(LEDPANEL_A,"a");
     if (rtc!=0) return -1;
     rtc=gpio_direction_output(LEDPANEL_A,0);
     if (rtc!=0) return -1;
+    
+    rtc=gpio_request(LEDPANEL_B,"b");
+    if (rtc!=0) return -1;
     rtc=gpio_direction_output(LEDPANEL_B,0);
+    if (rtc!=0) return -1;
+    
+    rtc=gpio_request(LEDPANEL_C,"c");
     if (rtc!=0) return -1;
     rtc=gpio_direction_output(LEDPANEL_C,0);
     if (rtc!=0) return -1;
+    
+    rtc=gpio_request(LEDPANEL_D,"D");
+    if (rtc!=0) return -1;    
     rtc=gpio_direction_output(LEDPANEL_D,0);
     if (rtc!=0) return -1;
+
+    rtc=gpio_request(LEDPANEL_R0,"r0");
+    if (rtc!=0) return -1;    
     rtc=gpio_direction_output(LEDPANEL_R0,0);
+    if (rtc!=0) return -1;
+
+    rtc=gpio_request(LEDPANEL_G0,"g0");
     if (rtc!=0) return -1;
     rtc=gpio_direction_output(LEDPANEL_G0,0);
     if (rtc!=0) return -1;
+    
+    rtc=gpio_request(LEDPANEL_B0,"b0");
+    if (rtc!=0) return -1;
     rtc=gpio_direction_output(LEDPANEL_B0,0);
     if (rtc!=0) return -1;
+    
+    rtc=gpio_request(LEDPANEL_R1,"r1");
+    if (rtc!=0) return -1;    
     rtc=gpio_direction_output(LEDPANEL_R1,0);
     if (rtc!=0) return -1;
+    
+    rtc=gpio_request(LEDPANEL_G1,"g1");
+    if (rtc!=0) return -1;    
     rtc=gpio_direction_output(LEDPANEL_G1,0);
     if (rtc!=0) return -1;
+    
+    rtc=gpio_request(LEDPANEL_B1,"b1");
+    if (rtc!=0) return -1;    
     rtc=gpio_direction_output(LEDPANEL_B1,0);
     if (rtc!=0) return -1;
 	return 0;
 }
 
-//int aq=0;
-
 enum hrtimer_restart ledpanel_hrtimer_callback(struct hrtimer *timer){
-	/*if (aq==0) {
-		gpio_set_value(LEDPANEL_R0,1);
-		aq=1;
-	} else {
-		gpio_set_value(LEDPANEL_R0,0);
-		aq=0;
-	}*/	
-
 	hrtimer_start(&hr_timer, ktime_set(0,0), HRTIMER_MODE_REL);
-	ledpanel_pattern();
+	ledpanel_pattern(1,1,1);
 	return HRTIMER_NORESTART;
 }
-
 
 static int ledpanel_init(void)
 {
