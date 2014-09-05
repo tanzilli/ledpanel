@@ -2,12 +2,23 @@
 #include <linux/module.h>
 #include <linux/gpio.h>
 #include <linux/delay.h>
- 
+
+#include <linux/kernel.h>
+#include <linux/moduleparam.h>
+#include <linux/init.h>
+#include <linux/hrtimer.h>
+#include <linux/ktime.h>
+#include <linux/device.h>
+#include <linux/kdev_t.h>
+
 MODULE_LICENSE("Dual BSD/GPL");
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Sergio Tanzilli");
 MODULE_DESCRIPTION("Driver for 32x32 RGB LCD PANELS");
+ 
+static struct hrtimer hr_timer; 
+int ledpanel_row=0;
  
 // Arietta G25 GPIO lines used
 // http://www.acmesystems.it/pinout_arietta
@@ -31,8 +42,7 @@ MODULE_DESCRIPTION("Driver for 32x32 RGB LCD PANELS");
 #define LEDPANEL_STB 45 
 
 // Set the row address (0-15) on A,B,C,D line
-
-static void SetABCD(unsigned char address) 
+static void ledpanel_set_ABCD(unsigned char address) 
 {
 	gpio_set_value(LEDPANEL_A,0);
 	gpio_set_value(LEDPANEL_B,0);
@@ -48,126 +58,126 @@ static void SetABCD(unsigned char address)
 	if (address & 8) 
 		gpio_set_value(LEDPANEL_D,1);
 } 
-
-static void LatchesReset(void) 
+ 
+static void ledpanel_pattern(void) 
 {
-	int i;
-		
-	gpio_set_value(LEDPANEL_R0,0);
-	gpio_set_value(LEDPANEL_G0,0);
-	gpio_set_value(LEDPANEL_B0,0);
-	gpio_set_value(LEDPANEL_R1,0);
-	gpio_set_value(LEDPANEL_G1,0);
-	gpio_set_value(LEDPANEL_B1,0);
+	int col;
 	
-	for (i=0;i<192;i++) {
+	gpio_set_value(LEDPANEL_OE,1);	
+	for (col=0;col<16;col++) {
+		gpio_set_value(LEDPANEL_R0,0);
+		gpio_set_value(LEDPANEL_G0,1);
+		gpio_set_value(LEDPANEL_B0,0);
+		gpio_set_value(LEDPANEL_R1,0);
+		gpio_set_value(LEDPANEL_G1,0);
+		gpio_set_value(LEDPANEL_B1,1);
+		
 		gpio_set_value(LEDPANEL_CLK,1);
 		gpio_set_value(LEDPANEL_CLK,0);
-	}
-	
-	gpio_set_value(LEDPANEL_STB,1);
-	gpio_set_value(LEDPANEL_STB,0);
-} 
- 
-static void LedPattern(void) 
-{
-	int r,z,p;
-	
-	for (z=0;z<1000;z++) {
-		for (r=0;r<16;r++) {
-			for (p=0;p<16;p++) {
-				gpio_set_value(LEDPANEL_R0,0);
-				gpio_set_value(LEDPANEL_G0,1);
-				gpio_set_value(LEDPANEL_B0,0);
-				gpio_set_value(LEDPANEL_R1,0);
-				gpio_set_value(LEDPANEL_G1,1);
-				gpio_set_value(LEDPANEL_B1,0);
-				
-				gpio_set_value(LEDPANEL_CLK,1);
-				gpio_set_value(LEDPANEL_CLK,0);
-				
-				gpio_set_value(LEDPANEL_R0,1);
-				gpio_set_value(LEDPANEL_G0,1);
-				gpio_set_value(LEDPANEL_B0,1);
-				gpio_set_value(LEDPANEL_R1,1);
-				gpio_set_value(LEDPANEL_G1,1);
-				gpio_set_value(LEDPANEL_B1,1);
-				
-				gpio_set_value(LEDPANEL_CLK,1);
-				gpio_set_value(LEDPANEL_CLK,0);
-			}		
-			
-			gpio_set_value(LEDPANEL_OE,1);	
-			SetABCD(r);
-			gpio_set_value(LEDPANEL_STB,1);
-			gpio_set_value(LEDPANEL_STB,0);
-			gpio_set_value(LEDPANEL_OE,0);	
+		
+		gpio_set_value(LEDPANEL_R0,1);
+		gpio_set_value(LEDPANEL_G0,0);
+		gpio_set_value(LEDPANEL_B0,0);
+		gpio_set_value(LEDPANEL_R1,1);
+		gpio_set_value(LEDPANEL_G1,0);
+		gpio_set_value(LEDPANEL_B1,0);
+		
+		gpio_set_value(LEDPANEL_CLK,1);
+		gpio_set_value(LEDPANEL_CLK,0);
 
-		}
+		ledpanel_set_ABCD(ledpanel_row);
+		
+		gpio_set_value(LEDPANEL_STB,1);
+		gpio_set_value(LEDPANEL_STB,0);
+		gpio_set_value(LEDPANEL_OE,0);	
 	}		
-	gpio_set_value(LEDPANEL_OE,1);
-
+	
+	ledpanel_row++;
+	if (ledpanel_row>=16) {
+		ledpanel_row=0;
+	}
 } 
 
-static int hello_init(void)
-{
+
+/* Set the initial state of GPIO lines */
+static int ledpanel_gpio_init(void) {
 	int rtc;
-    
-    printk(KERN_INFO "RGBLedPanel driver v0.05 initializing.\n");
-    
+
     rtc=gpio_direction_output(LEDPANEL_OE,1);
-    printk(KERN_ALERT "OE=%d\n",rtc);
- 
+    if (rtc!=0) return -1;
     rtc=gpio_direction_output(LEDPANEL_CLK,0);
-    printk(KERN_ALERT "CLK=%d\n",rtc);
-
+    if (rtc!=0) return -1;
     rtc=gpio_direction_output(LEDPANEL_STB,0);
-    printk(KERN_ALERT "STB=%d\n",rtc);
- 
+    if (rtc!=0) return -1;
     rtc=gpio_direction_output(LEDPANEL_A,0);
-    printk(KERN_ALERT "A=%d\n",rtc);
-
+    if (rtc!=0) return -1;
     rtc=gpio_direction_output(LEDPANEL_B,0);
-    printk(KERN_ALERT "B=%d\n",rtc);
-
+    if (rtc!=0) return -1;
     rtc=gpio_direction_output(LEDPANEL_C,0);
-    printk(KERN_ALERT "C=%d\n",rtc);
-    
+    if (rtc!=0) return -1;
     rtc=gpio_direction_output(LEDPANEL_D,0);
-    printk(KERN_ALERT "D=%d\n",rtc);
- 
+    if (rtc!=0) return -1;
     rtc=gpio_direction_output(LEDPANEL_R0,0);
-    printk(KERN_ALERT "R0=%d\n",rtc);
-    
+    if (rtc!=0) return -1;
     rtc=gpio_direction_output(LEDPANEL_G0,0);
-    printk(KERN_ALERT "G0=%d\n",rtc);
-
+    if (rtc!=0) return -1;
     rtc=gpio_direction_output(LEDPANEL_B0,0);
-    printk(KERN_ALERT "B0=%d\n",rtc);
-
+    if (rtc!=0) return -1;
     rtc=gpio_direction_output(LEDPANEL_R1,0);
-    printk(KERN_ALERT "R1=%d\n",rtc);
-    
+    if (rtc!=0) return -1;
     rtc=gpio_direction_output(LEDPANEL_G1,0);
-    printk(KERN_ALERT "G1=%d\n",rtc);
-
+    if (rtc!=0) return -1;
     rtc=gpio_direction_output(LEDPANEL_B1,0);
-    printk(KERN_ALERT "B1=%d\n",rtc);
-
-	LatchesReset();
-	LedPattern();
-	
-	printk(KERN_INFO "RGBLedPanel initialized.\n");
-
-
+    if (rtc!=0) return -1;
 	return 0;
 }
- 
-static void hello_exit(void)
+
+//int aq=0;
+
+enum hrtimer_restart ledpanel_hrtimer_callback(struct hrtimer *timer){
+	/*if (aq==0) {
+		gpio_set_value(LEDPANEL_R0,1);
+		aq=1;
+	} else {
+		gpio_set_value(LEDPANEL_R0,0);
+		aq=0;
+	}*/	
+
+	hrtimer_start(&hr_timer, ktime_set(0,0), HRTIMER_MODE_REL);
+	ledpanel_pattern();
+	return HRTIMER_NORESTART;
+}
+
+
+static int ledpanel_init(void)
 {
-	gpio_set_value(LEDPANEL_OE,1);
-    printk(KERN_INFO "RGBLedPanel disabled.\n");
+	struct timespec tp;
+	
+    printk(KERN_INFO "Ledpanel driver v0.06 initializing.\n");
+    
+	hrtimer_get_res(CLOCK_MONOTONIC, &tp);
+	printk(KERN_INFO "Clock resolution is %ldns\n", tp.tv_nsec);
+      
+    if (ledpanel_gpio_init()!=0) {
+		printk(KERN_INFO "Error during the GPIO allocation.\n");
+		return -1;
+	}	 
+	
+	hrtimer_init(&hr_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
+	hr_timer.function = &ledpanel_hrtimer_callback;
+	hrtimer_start(&hr_timer, ktime_set(0,0), HRTIMER_MODE_REL);
+	
+	printk(KERN_INFO "Ledpanel initialized.\n");
+	return 0;
+
 }
  
-module_init(hello_init);
-module_exit(hello_exit);
+static void ledpanel_exit(void)
+{
+	hrtimer_cancel(&hr_timer);
+	gpio_set_value(LEDPANEL_OE,1);
+    printk(KERN_INFO "Ledpanel disabled.\n");
+}
+ 
+module_init(ledpanel_init);
+module_exit(ledpanel_exit);

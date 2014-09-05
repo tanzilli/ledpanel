@@ -33,4 +33,14 @@ Open a command session with Arietta and load the Kernel module:
 root@arietta:~# insmod ledpanel.ko
 </code>
 
+##Kernel config 
 
+It is requested to increase the jiffies per second from 128 to 1024
+inside the Kernel make menuconfig:
+
+<code>
+System Type  ---> 
+  Atmel AT91 System-on-Chip  --->
+    (<b>1024</b>) Kernel HZ (jiffies per second)
+</code> 
+    
