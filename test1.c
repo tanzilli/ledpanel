@@ -1,9 +1,4 @@
-/*
- *  Basic test program 
- * 	Compile this programm directly on the Arietta G25
- * 
- *  gcc test.c -o test
-*/ 
+/* Basic test program */
 
 #include <stdio.h>
 #include <sys/types.h>
@@ -12,7 +7,7 @@
 #include <unistd.h>
 
 #define MAXBUFFER_PER_PANEL 32*32*3
-#define OUT_FILE "/sys/class/ledpanel/buffer32x32"
+#define OUT_FILE "/sys/class/ledpanel/rgb_buffer"
 
 void WriteBuffer(unsigned char *buffer) {
 	int fd;

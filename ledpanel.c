@@ -31,7 +31,7 @@ MODULE_LICENSE("Dual BSD/GPL");
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Sergio Tanzilli");
-MODULE_DESCRIPTION("Driver for 32x32 RGB LCD PANELS");
+MODULE_DESCRIPTION("Driver for RGB LCD PANELS");
  
 static struct hrtimer hr_timer; 
 static int ledpanel_row=0;
@@ -92,15 +92,14 @@ static ssize_t ledpanel_buffer32x32(struct class *class, struct class_attribute 
 		memcpy(buffer32x32,buf,len);
 	} else {
 		memcpy(buffer32x32,buf,MAXBUFFER_PER_PANEL);
-	}	
-	
+	}		
 	mutex_unlock(&sysfs_lock);
 	return len;
 }
 
 /* Sysfs definitions for ledpanel class */
 static struct class_attribute ledpanel_class_attrs[] = {
-   __ATTR(buffer32x32,   0200, NULL, ledpanel_buffer32x32),
+   __ATTR(rgb_buffer,   0200, NULL, ledpanel_buffer32x32),
    __ATTR_NULL,
 };
 
@@ -131,7 +130,7 @@ static void ledpanel_set_ABCD(unsigned char address)
 static void ledpanel_pattern(unsigned char red,unsigned char green,unsigned char blue) 
 {
 	int col;
-	
+
 	for (col=0;col<32;col++) {
 		gpio_set_value(ledpanel_gpio[LEDPANEL_OE],1);	
 		
