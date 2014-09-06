@@ -24,7 +24,7 @@ static int ledpanel_row=0;
 // http://www.acmesystems.it/pinout_arietta
 // http://www.acmesystems.it/P6LED3232
  
- 
+// GPIO lines used 
 static char ledpanel_gpio[] = {
 	22, // R0
 	21, // G0
@@ -73,6 +73,23 @@ const char *ledpanel_label[] = {
 #define LEDPANEL_OE		10 
 #define LEDPANEL_CLK	11 
 #define LEDPANEL_STB	12 
+
+static ssize_t ledpanel_buffer32x32(struct class *class, struct class_attribute *attr, const char *buf, size_t len){
+	printk(KERN_INFO "Buffer lenght %d.\n",len);
+	return len;
+}
+
+/* Sysfs definitions for ledpanel class */
+static struct class_attribute ledpanel_class_attrs[] = {
+   __ATTR(buffer32x32,   0200, NULL, ledpanel_buffer32x32),
+   __ATTR_NULL,
+};
+
+static struct class ledpanel_class = {
+  .name =        "ledpanel",
+  .owner =       THIS_MODULE,
+  .class_attrs = ledpanel_class_attrs,
+};
 
 // Set the row address (0-15) on A,B,C,D line
 static void ledpanel_set_ABCD(unsigned char address) 
@@ -159,12 +176,14 @@ enum hrtimer_restart ledpanel_hrtimer_callback(struct hrtimer *timer){
 	return HRTIMER_NORESTART;
 }
 
-
 static int ledpanel_init(void)
 {
 	struct timespec tp;
 	
-    printk(KERN_INFO "Ledpanel driver v0.07 initializing.\n");
+    printk(KERN_INFO "Ledpanel driver v0.08 initializing.\n");
+
+	if (class_register(&ledpanel_class)<0) goto fail;
+
     
 	hrtimer_get_res(CLOCK_MONOTONIC, &tp);
 	printk(KERN_INFO "Clock resolution is %ldns\n", tp.tv_nsec);
@@ -181,6 +200,9 @@ static int ledpanel_init(void)
 	printk(KERN_INFO "Ledpanel initialized.\n");
 	return 0;
 
+fail:
+	return -1;
+
 }
  
 static void ledpanel_exit(void)
@@ -192,7 +214,8 @@ static void ledpanel_exit(void)
  
  	for (i=0;i<sizeof(ledpanel_gpio);i++)
 		gpio_free(ledpanel_gpio[i]);
- 
+
+	class_unregister(&ledpanel_class);
     printk(KERN_INFO "Ledpanel disabled.\n");
 }
  
