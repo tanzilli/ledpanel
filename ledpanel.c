@@ -131,9 +131,9 @@ static void ledpanel_pattern(unsigned char red,unsigned char green,unsigned char
 {
 	int col;
 
+	gpio_set_value(ledpanel_gpio[LEDPANEL_OE],1);	
+	ledpanel_set_ABCD(ledpanel_row);
 	for (col=0;col<32;col++) {
-		gpio_set_value(ledpanel_gpio[LEDPANEL_OE],1);	
-		
 		gpio_set_value(ledpanel_gpio[LEDPANEL_R0],buffer32x32[pbuffer_top+0]);
 		gpio_set_value(ledpanel_gpio[LEDPANEL_G0],buffer32x32[pbuffer_top+1]);
 		gpio_set_value(ledpanel_gpio[LEDPANEL_B0],buffer32x32[pbuffer_top+2]);
@@ -144,15 +144,13 @@ static void ledpanel_pattern(unsigned char red,unsigned char green,unsigned char
 		gpio_set_value(ledpanel_gpio[LEDPANEL_CLK],1);
 		gpio_set_value(ledpanel_gpio[LEDPANEL_CLK],0);
 
-		ledpanel_set_ABCD(ledpanel_row);
-		
-		gpio_set_value(ledpanel_gpio[LEDPANEL_STB],1);
-		gpio_set_value(ledpanel_gpio[LEDPANEL_STB],0);
-		gpio_set_value(ledpanel_gpio[LEDPANEL_OE],0);	
-
 		pbuffer_top+=3;
 		pbuffer_bottom+=3;
 	}		
+	gpio_set_value(ledpanel_gpio[LEDPANEL_STB],1);
+	gpio_set_value(ledpanel_gpio[LEDPANEL_STB],0);
+	gpio_set_value(ledpanel_gpio[LEDPANEL_OE],0);	
+
 	
 	ledpanel_row++;
 	if (ledpanel_row>=16) {
@@ -194,7 +192,7 @@ static int ledpanel_init(void)
 {
 	struct timespec tp;
 	
-    printk(KERN_INFO "Ledpanel driver v0.09 initializing.\n");
+    printk(KERN_INFO "Ledpanel driver v0.10 initializing.\n");
 
 	if (class_register(&ledpanel_class)<0) goto fail;
 
