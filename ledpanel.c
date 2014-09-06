@@ -11,6 +11,22 @@
 #include <linux/device.h>
 #include <linux/kdev_t.h>
 
+#define LEDPANEL_R0		0 
+#define LEDPANEL_G0		1 
+#define LEDPANEL_B0		2 
+#define LEDPANEL_R1		3 
+#define LEDPANEL_G1		4 
+#define LEDPANEL_B1		5 
+#define LEDPANEL_A		6 
+#define LEDPANEL_B		7 
+#define LEDPANEL_C		8 
+#define LEDPANEL_D		9 
+#define LEDPANEL_OE		10 
+#define LEDPANEL_CLK	11 
+#define LEDPANEL_STB	12 
+
+#define MAXBUFFER_PER_PANEL 32*32*3
+
 MODULE_LICENSE("Dual BSD/GPL");
 
 MODULE_LICENSE("GPL");
@@ -19,6 +35,12 @@ MODULE_DESCRIPTION("Driver for 32x32 RGB LCD PANELS");
  
 static struct hrtimer hr_timer; 
 static int ledpanel_row=0;
+
+static int pbuffer_top=0;
+static int pbuffer_bottom=1536;
+
+static DEFINE_MUTEX(sysfs_lock);
+static unsigned char buffer32x32[MAXBUFFER_PER_PANEL];
  
 // Arietta G25 GPIO lines used
 // http://www.acmesystems.it/pinout_arietta
@@ -60,22 +82,19 @@ const char *ledpanel_label[] = {
 	"STB"
 }; 
 
-#define LEDPANEL_R0		0 
-#define LEDPANEL_G0		1 
-#define LEDPANEL_B0		2 
-#define LEDPANEL_R1		3 
-#define LEDPANEL_G1		4 
-#define LEDPANEL_B1		5 
-#define LEDPANEL_A		6 
-#define LEDPANEL_B		7 
-#define LEDPANEL_C		8 
-#define LEDPANEL_D		9 
-#define LEDPANEL_OE		10 
-#define LEDPANEL_CLK	11 
-#define LEDPANEL_STB	12 
 
 static ssize_t ledpanel_buffer32x32(struct class *class, struct class_attribute *attr, const char *buf, size_t len){
 	printk(KERN_INFO "Buffer lenght %d.\n",len);
+	
+	mutex_lock(&sysfs_lock);
+	if ((len<=MAXBUFFER_PER_PANEL)) {
+		memset(buffer32x32,MAXBUFFER_PER_PANEL,0);
+		memcpy(buffer32x32,buf,len);
+	} else {
+		memcpy(buffer32x32,buf,MAXBUFFER_PER_PANEL);
+	}	
+	
+	mutex_unlock(&sysfs_lock);
 	return len;
 }
 
@@ -113,24 +132,15 @@ static void ledpanel_pattern(unsigned char red,unsigned char green,unsigned char
 {
 	int col;
 	
-	gpio_set_value(ledpanel_gpio[LEDPANEL_OE],1);	
-	for (col=0;col<16;col++) {
-		gpio_set_value(ledpanel_gpio[LEDPANEL_R0],red);
-		gpio_set_value(ledpanel_gpio[LEDPANEL_G0],green);
-		gpio_set_value(ledpanel_gpio[LEDPANEL_B0],blue);
-		gpio_set_value(ledpanel_gpio[LEDPANEL_R1],red);
-		gpio_set_value(ledpanel_gpio[LEDPANEL_G1],green);
-		gpio_set_value(ledpanel_gpio[LEDPANEL_B1],blue);
+	for (col=0;col<32;col++) {
+		gpio_set_value(ledpanel_gpio[LEDPANEL_OE],1);	
 		
-		gpio_set_value(ledpanel_gpio[LEDPANEL_CLK],1);
-		gpio_set_value(ledpanel_gpio[LEDPANEL_CLK],0);
-		
-		gpio_set_value(ledpanel_gpio[LEDPANEL_R0],red);
-		gpio_set_value(ledpanel_gpio[LEDPANEL_G0],green);
-		gpio_set_value(ledpanel_gpio[LEDPANEL_B0],blue);
-		gpio_set_value(ledpanel_gpio[LEDPANEL_R1],red);
-		gpio_set_value(ledpanel_gpio[LEDPANEL_G1],green);
-		gpio_set_value(ledpanel_gpio[LEDPANEL_B1],blue);
+		gpio_set_value(ledpanel_gpio[LEDPANEL_R0],buffer32x32[pbuffer_top+0]);
+		gpio_set_value(ledpanel_gpio[LEDPANEL_G0],buffer32x32[pbuffer_top+1]);
+		gpio_set_value(ledpanel_gpio[LEDPANEL_B0],buffer32x32[pbuffer_top+2]);
+		gpio_set_value(ledpanel_gpio[LEDPANEL_R1],buffer32x32[pbuffer_bottom+0]);
+		gpio_set_value(ledpanel_gpio[LEDPANEL_G1],buffer32x32[pbuffer_bottom+1]);
+		gpio_set_value(ledpanel_gpio[LEDPANEL_B1],buffer32x32[pbuffer_bottom+2]);
 		
 		gpio_set_value(ledpanel_gpio[LEDPANEL_CLK],1);
 		gpio_set_value(ledpanel_gpio[LEDPANEL_CLK],0);
@@ -140,11 +150,16 @@ static void ledpanel_pattern(unsigned char red,unsigned char green,unsigned char
 		gpio_set_value(ledpanel_gpio[LEDPANEL_STB],1);
 		gpio_set_value(ledpanel_gpio[LEDPANEL_STB],0);
 		gpio_set_value(ledpanel_gpio[LEDPANEL_OE],0);	
+
+		pbuffer_top+=3;
+		pbuffer_bottom+=3;
 	}		
 	
 	ledpanel_row++;
 	if (ledpanel_row>=16) {
 		ledpanel_row=0;
+		pbuffer_top=0;
+		pbuffer_bottom=1536;
 	}
 } 
 
@@ -180,7 +195,7 @@ static int ledpanel_init(void)
 {
 	struct timespec tp;
 	
-    printk(KERN_INFO "Ledpanel driver v0.08 initializing.\n");
+    printk(KERN_INFO "Ledpanel driver v0.09 initializing.\n");
 
 	if (class_register(&ledpanel_class)<0) goto fail;
 
@@ -196,6 +211,10 @@ static int ledpanel_init(void)
 	hrtimer_init(&hr_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
 	hr_timer.function = &ledpanel_hrtimer_callback;
 	hrtimer_start(&hr_timer, ktime_set(0,0), HRTIMER_MODE_REL);
+	
+	// Just for test
+	//memset(buffer32x32,MAXBUFFER_PER_PANEL,0);
+	//buffer32x32[1]=1;
 	
 	printk(KERN_INFO "Ledpanel initialized.\n");
 	return 0;
