@@ -18,13 +18,13 @@ $ cd ledpanel
 Compile the module:
 
 <code>
-$ make -C ~/linux-3.16.1 ARCH=arm CROSS_COMPILE=arm-linux-gnueabi- M=`pwd` modules
+$ make -C ~/linux-3.16.1 ARCH=arm CROSS_COMPILE=arm-linux-gnueabi- M='pwd' modules
 </code>
 
 Save the module inside your Arietta microSD:
 
 <code>
-$ sshpass -p acmesystems ledpanel.ko root@192.168.10.10:/root
+$ sshpass -p acmesystems scp ledpanel.ko root@192.168.10.10:/root
 </code>
 
 Open a command session with Arietta and load the Kernel module:
