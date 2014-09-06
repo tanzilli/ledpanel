@@ -209,10 +209,6 @@ static int ledpanel_init(void)
 	hr_timer.function = &ledpanel_hrtimer_callback;
 	hrtimer_start(&hr_timer, ktime_set(0,0), HRTIMER_MODE_REL);
 	
-	// Just for test
-	//memset(buffer32x32,MAXBUFFER_PER_PANEL,0);
-	//buffer32x32[1]=1;
-	
 	printk(KERN_INFO "Ledpanel initialized.\n");
 	return 0;
 
