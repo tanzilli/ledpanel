@@ -127,7 +127,7 @@ static void ledpanel_set_ABCD(unsigned char address)
 		gpio_set_value(ledpanel_gpio[LEDPANEL_D],1);
 } 
  
-static void ledpanel_pattern(unsigned char red,unsigned char green,unsigned char blue) 
+static void ledpanel_pattern(void) 
 {
 	int col;
 
@@ -184,7 +184,7 @@ static int ledpanel_gpio_init(void) {
 // Callback function called by the hrtimer
 enum hrtimer_restart ledpanel_hrtimer_callback(struct hrtimer *timer){
 	hrtimer_start(&hr_timer, ktime_set(0,0), HRTIMER_MODE_REL);
-	ledpanel_pattern(1,1,1);
+	ledpanel_pattern();
 	return HRTIMER_NORESTART;
 }
 
