@@ -35,12 +35,13 @@ root@arietta:~# insmod ledpanel.ko
 
 ##Kernel config 
 
-It is requested to increase the jiffies per second from 128 to 1024
-inside the Kernel make menuconfig:
+Enable the High Resolution Timer Support inside the Kernel 
+configuration:
 
-<code>
-System Type  ---> 
-  Atmel AT91 System-on-Chip  --->
-    (<b>1024</b>) Kernel HZ (jiffies per second)
-</code> 
+<pre>
+Device Drivers  ---> 
+	General setup  --->
+		Timers subsystem  --->
+			[*] High Resolution Timer Support  
+</pre> 
     
