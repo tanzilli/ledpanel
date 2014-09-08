@@ -26,22 +26,20 @@
 #define LEDPANEL_STB	12 
 
 #define MAXBUFFER_PER_PANEL 32*32*3
-#define MAX_PANELS 4
 
 MODULE_LICENSE("Dual BSD/GPL");
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Sergio Tanzilli");
-MODULE_DESCRIPTION("Driver for RGB LCD PANELS");
+MODULE_DESCRIPTION("Driver for RGB 32x32 LED PANEL");
  
 static struct hrtimer hr_timer; 
 static int ledpanel_row=0;
 static int pbuffer_top;
 static int pbuffer_bottom=1536;
-static long panels=1;
 
 static DEFINE_MUTEX(sysfs_lock);
-static unsigned char rgb_buffer[MAXBUFFER_PER_PANEL*MAX_PANELS];
+static unsigned char rgb_buffer[MAXBUFFER_PER_PANEL];
  
 // Arietta G25 GPIO lines used
 // http://www.acmesystems.it/pinout_arietta
@@ -89,38 +87,21 @@ const char *ledpanel_label[] = {
 // rgb_buffer is the content to show on the panel(s) in rgb 8 bit format
 static ssize_t ledpanel_rgb_buffer(struct class *class, struct class_attribute *attr, const char *buf, size_t len) {
 	mutex_lock(&sysfs_lock);
-	if ((len<=MAXBUFFER_PER_PANEL*panels)) {
-		memset(rgb_buffer,MAXBUFFER_PER_PANEL*panels,0);
+	if ((len<=MAXBUFFER_PER_PANEL)) {
+		memset(rgb_buffer,MAXBUFFER_PER_PANEL,0);
 		memcpy(rgb_buffer,buf,len);
 	} else {
-		memcpy(rgb_buffer,buf,MAXBUFFER_PER_PANEL*panels);
+		memcpy(rgb_buffer,buf,MAXBUFFER_PER_PANEL);
 	}		
 	mutex_unlock(&sysfs_lock);
-	return len;
-}
-
-// This function is called when you write something on /sys/class/ledpanel/panels
-// passing in *buf the incoming content
-
-// panels is the number of 32x32 rgb panels to manage
-static ssize_t ledpanel_panels(struct class *class, struct class_attribute *attr, const char *buf, size_t len) {
-	long _panels;
-	int status;
-	
-	status=strict_strtol(buf, 0, &_panels);
-	
-	if (_panels>0 && _panels<5) 
-		panels=_panels;
-		
+	//printk(KERN_INFO "Buffer len %ld bytes\n", len);
 	return len;
 }
 	
-
 // Sysfs definitions for ledpanel class
 // For any name a file in /sys/class/ledpanel is created
 static struct class_attribute ledpanel_class_attrs[] = {
    __ATTR(rgb_buffer,   0200, NULL, ledpanel_rgb_buffer),
-   __ATTR(panels    ,   0200, NULL, ledpanel_panels),
    __ATTR_NULL,
 };
 
@@ -176,7 +157,7 @@ enum hrtimer_restart ledpanel_hrtimer_callback(struct hrtimer *timer){
 
 	gpio_set_value(ledpanel_gpio[LEDPANEL_OE],1);	
 	ledpanel_set_ABCD(ledpanel_row);
-	for (col=0;col<(32*panels);col++) {
+	for (col=0;col<32;col++) {
 		gpio_set_value(ledpanel_gpio[LEDPANEL_R0],rgb_buffer[pbuffer_top+0]);
 		gpio_set_value(ledpanel_gpio[LEDPANEL_G0],rgb_buffer[pbuffer_top+1]);
 		gpio_set_value(ledpanel_gpio[LEDPANEL_B0],rgb_buffer[pbuffer_top+2]);
@@ -197,7 +178,7 @@ enum hrtimer_restart ledpanel_hrtimer_callback(struct hrtimer *timer){
 	if ((++ledpanel_row)==16) {
 		ledpanel_row=0;
 		pbuffer_top=0;
-		pbuffer_bottom=1536*panels;
+		pbuffer_bottom=1536;
 	}
 
 	hrtimer_start(&hr_timer, ktime_set(0,0), HRTIMER_MODE_REL);
@@ -208,23 +189,24 @@ static int ledpanel_init(void)
 {
 	struct timespec tp;
 	
-    printk(KERN_INFO "Ledpanel driver v0.12 initializing.\n");
+    printk(KERN_INFO "Ledpanel driver v1.00 initializing.\n");
 
 	if (class_register(&ledpanel_class)<0) goto fail;
     
 	hrtimer_get_res(CLOCK_MONOTONIC, &tp);
-	printk(KERN_INFO "Clock resolution is %ldns\n", tp.tv_nsec);
+	printk(KERN_INFO "Clock resolution: %ldns\n", tp.tv_nsec);
       
     if (ledpanel_gpio_init()!=0) {
 		printk(KERN_INFO "Error during the GPIO allocation.\n");
 		return -1;
 	}	 
 	
+	printk(KERN_INFO "Max RGB buffer len: %d bytes\n", MAXBUFFER_PER_PANEL);
+	
+	
 	hrtimer_init(&hr_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
 	hr_timer.function = &ledpanel_hrtimer_callback;
 	hrtimer_start(&hr_timer, ktime_set(0,200000), HRTIMER_MODE_REL);
-	
-	printk(KERN_INFO "Ledpanel initialized.\n");
 	return 0;
 
 fail:
