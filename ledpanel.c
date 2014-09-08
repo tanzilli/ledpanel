@@ -26,6 +26,7 @@
 #define LEDPANEL_STB	12 
 
 #define MAXBUFFER_PER_PANEL 32*32*3
+#define MAX_PANELS 4
 
 MODULE_LICENSE("Dual BSD/GPL");
 
@@ -35,12 +36,12 @@ MODULE_DESCRIPTION("Driver for RGB LCD PANELS");
  
 static struct hrtimer hr_timer; 
 static int ledpanel_row=0;
-
-static int pbuffer_top=0;
+static int pbuffer_top;
 static int pbuffer_bottom=1536;
+static long panels=1;
 
 static DEFINE_MUTEX(sysfs_lock);
-static unsigned char buffer32x32[MAXBUFFER_PER_PANEL];
+static unsigned char rgb_buffer[MAXBUFFER_PER_PANEL*MAX_PANELS];
  
 // Arietta G25 GPIO lines used
 // http://www.acmesystems.it/pinout_arietta
@@ -82,34 +83,55 @@ const char *ledpanel_label[] = {
 	"STB"
 }; 
 
+// This function is called when you write something on /sys/class/ledpanel/rgb_buffer
+// passing in *buf the incoming content
 
-static ssize_t ledpanel_buffer32x32(struct class *class, struct class_attribute *attr, const char *buf, size_t len){
-	printk(KERN_INFO "Buffer lenght %d.\n",len);
-	
+// rgb_buffer is the content to show on the panel(s) in rgb 8 bit format
+static ssize_t ledpanel_rgb_buffer(struct class *class, struct class_attribute *attr, const char *buf, size_t len) {
 	mutex_lock(&sysfs_lock);
-	if ((len<=MAXBUFFER_PER_PANEL)) {
-		memset(buffer32x32,MAXBUFFER_PER_PANEL,0);
-		memcpy(buffer32x32,buf,len);
+	if ((len<=MAXBUFFER_PER_PANEL*panels)) {
+		memset(rgb_buffer,MAXBUFFER_PER_PANEL*panels,0);
+		memcpy(rgb_buffer,buf,len);
 	} else {
-		memcpy(buffer32x32,buf,MAXBUFFER_PER_PANEL);
+		memcpy(rgb_buffer,buf,MAXBUFFER_PER_PANEL*panels);
 	}		
 	mutex_unlock(&sysfs_lock);
 	return len;
 }
 
-/* Sysfs definitions for ledpanel class */
+// This function is called when you write something on /sys/class/ledpanel/panels
+// passing in *buf the incoming content
+
+// panels is the number of 32x32 rgb panels to manage
+static ssize_t ledpanel_panels(struct class *class, struct class_attribute *attr, const char *buf, size_t len) {
+	long _panels;
+	int status;
+	
+	status=strict_strtol(buf, 0, &_panels);
+	
+	if (_panels>0 && _panels<5) 
+		panels=_panels;
+		
+	return len;
+}
+	
+
+// Sysfs definitions for ledpanel class
+// For any name a file in /sys/class/ledpanel is created
 static struct class_attribute ledpanel_class_attrs[] = {
-   __ATTR(rgb_buffer,   0200, NULL, ledpanel_buffer32x32),
+   __ATTR(rgb_buffer,   0200, NULL, ledpanel_rgb_buffer),
+   __ATTR(panels    ,   0200, NULL, ledpanel_panels),
    __ATTR_NULL,
 };
 
+// Name of directory created in /sys/class
 static struct class ledpanel_class = {
   .name =        "ledpanel",
   .owner =       THIS_MODULE,
   .class_attrs = ledpanel_class_attrs,
 };
 
-// Set the row address (0-15) on A,B,C,D line
+// Send on A,B,C,D lines the row address (0 to 15)
 static void ledpanel_set_ABCD(unsigned char address) 
 {
 	gpio_set_value(ledpanel_gpio[LEDPANEL_A],0);
@@ -126,42 +148,8 @@ static void ledpanel_set_ABCD(unsigned char address)
 	if (address & 8) 
 		gpio_set_value(ledpanel_gpio[LEDPANEL_D],1);
 } 
- 
-static void ledpanel_pattern(void) 
-{
-	int col;
 
-	gpio_set_value(ledpanel_gpio[LEDPANEL_OE],1);	
-	ledpanel_set_ABCD(ledpanel_row);
-	for (col=0;col<32;col++) {
-		gpio_set_value(ledpanel_gpio[LEDPANEL_R0],buffer32x32[pbuffer_top+0]);
-		gpio_set_value(ledpanel_gpio[LEDPANEL_G0],buffer32x32[pbuffer_top+1]);
-		gpio_set_value(ledpanel_gpio[LEDPANEL_B0],buffer32x32[pbuffer_top+2]);
-		gpio_set_value(ledpanel_gpio[LEDPANEL_R1],buffer32x32[pbuffer_bottom+0]);
-		gpio_set_value(ledpanel_gpio[LEDPANEL_G1],buffer32x32[pbuffer_bottom+1]);
-		gpio_set_value(ledpanel_gpio[LEDPANEL_B1],buffer32x32[pbuffer_bottom+2]);
-		
-		gpio_set_value(ledpanel_gpio[LEDPANEL_CLK],1);
-		gpio_set_value(ledpanel_gpio[LEDPANEL_CLK],0);
-
-		pbuffer_top+=3;
-		pbuffer_bottom+=3;
-	}		
-	gpio_set_value(ledpanel_gpio[LEDPANEL_STB],1);
-	gpio_set_value(ledpanel_gpio[LEDPANEL_STB],0);
-	gpio_set_value(ledpanel_gpio[LEDPANEL_OE],0);	
-
-	
-	ledpanel_row++;
-	if (ledpanel_row>=16) {
-		ledpanel_row=0;
-		pbuffer_top=0;
-		pbuffer_bottom=1536;
-	}
-} 
-
-
-/* Set the initial state of GPIO lines */
+// Set the initial state of GPIO lines
 static int ledpanel_gpio_init(void) {
 	int rtc,i;
 
@@ -181,10 +169,38 @@ static int ledpanel_gpio_init(void) {
 	return 0;
 }
 
+// Send a new row the panel
 // Callback function called by the hrtimer
 enum hrtimer_restart ledpanel_hrtimer_callback(struct hrtimer *timer){
+	int col;
+
+	gpio_set_value(ledpanel_gpio[LEDPANEL_OE],1);	
+	ledpanel_set_ABCD(ledpanel_row);
+	for (col=0;col<(32*panels);col++) {
+		gpio_set_value(ledpanel_gpio[LEDPANEL_R0],rgb_buffer[pbuffer_top+0]);
+		gpio_set_value(ledpanel_gpio[LEDPANEL_G0],rgb_buffer[pbuffer_top+1]);
+		gpio_set_value(ledpanel_gpio[LEDPANEL_B0],rgb_buffer[pbuffer_top+2]);
+		gpio_set_value(ledpanel_gpio[LEDPANEL_R1],rgb_buffer[pbuffer_bottom+0]);
+		gpio_set_value(ledpanel_gpio[LEDPANEL_G1],rgb_buffer[pbuffer_bottom+1]);
+		gpio_set_value(ledpanel_gpio[LEDPANEL_B1],rgb_buffer[pbuffer_bottom+2]);
+		
+		gpio_set_value(ledpanel_gpio[LEDPANEL_CLK],1);
+		gpio_set_value(ledpanel_gpio[LEDPANEL_CLK],0);
+
+		pbuffer_top+=3;
+		pbuffer_bottom+=3;
+	}		
+	gpio_set_value(ledpanel_gpio[LEDPANEL_STB],1);
+	gpio_set_value(ledpanel_gpio[LEDPANEL_STB],0);
+	gpio_set_value(ledpanel_gpio[LEDPANEL_OE],0);	
+	
+	if ((++ledpanel_row)==16) {
+		ledpanel_row=0;
+		pbuffer_top=0;
+		pbuffer_bottom=1536*panels;
+	}
+
 	hrtimer_start(&hr_timer, ktime_set(0,0), HRTIMER_MODE_REL);
-	ledpanel_pattern();
 	return HRTIMER_NORESTART;
 }
 
@@ -192,10 +208,9 @@ static int ledpanel_init(void)
 {
 	struct timespec tp;
 	
-    printk(KERN_INFO "Ledpanel driver v0.10 initializing.\n");
+    printk(KERN_INFO "Ledpanel driver v0.12 initializing.\n");
 
 	if (class_register(&ledpanel_class)<0) goto fail;
-
     
 	hrtimer_get_res(CLOCK_MONOTONIC, &tp);
 	printk(KERN_INFO "Clock resolution is %ldns\n", tp.tv_nsec);
@@ -207,7 +222,7 @@ static int ledpanel_init(void)
 	
 	hrtimer_init(&hr_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
 	hr_timer.function = &ledpanel_hrtimer_callback;
-	hrtimer_start(&hr_timer, ktime_set(0,0), HRTIMER_MODE_REL);
+	hrtimer_start(&hr_timer, ktime_set(0,200000), HRTIMER_MODE_REL);
 	
 	printk(KERN_INFO "Ledpanel initialized.\n");
 	return 0;
