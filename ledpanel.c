@@ -21,9 +21,9 @@
 #define LEDPANEL_B		7 
 #define LEDPANEL_C		8 
 #define LEDPANEL_D		9 
-#define LEDPANEL_OE		10 
-#define LEDPANEL_CLK	11 
-#define LEDPANEL_STB	12 
+#define LEDPANEL_CLK	10 
+#define LEDPANEL_STB	11 
+#define LEDPANEL_OE		12 
 
 #define MAXBUFFER_PER_PANEL 32*32*3
 
@@ -43,26 +43,26 @@ static unsigned char rgb_buffer[MAXBUFFER_PER_PANEL];
  
 // Arietta G25 GPIO lines used
 // http://www.acmesystems.it/pinout_arietta
-// http://www.acmesystems.it/P6LED3232
+// http://www.acmesystems.it/ledpanel
  
 // GPIO lines used 
 static char ledpanel_gpio[] = {
-	22, // R0
-	21, // G0
-	31, // B0 
+	21, // R0
+	22, // G0
+	23, // B0 
 	
-	30, // R1
-	1,  // G1 
-	7,  // B1
+	24, // R1
+	25, // G1 
+	26, // B1
 	
-	5,  // A
-	91, // B
-	95, // C
-	43, // D
+	5, // A
+	6, // B
+	7, // C
+	8, // D
 	
-	46, // OE 
-	44, // CLK
-	45  // STB
+	27, // CLK
+	28, // STB
+	29, // OE 
 }; 
 
 const char *ledpanel_label[] = {
@@ -189,7 +189,7 @@ static int ledpanel_init(void)
 {
 	struct timespec tp;
 	
-    printk(KERN_INFO "Ledpanel driver v1.00 initializing.\n");
+    printk(KERN_INFO "Ledpanel driver v1.01 initializing.\n");
 
 	if (class_register(&ledpanel_class)<0) goto fail;
     
