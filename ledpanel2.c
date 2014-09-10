@@ -46,6 +46,7 @@ MODULE_AUTHOR("Sergio Tanzilli");
 MODULE_DESCRIPTION("Driver for RGB 32x32 LED PANEL");
  
 static struct hrtimer hr_timer; 
+static int newframe=0;
 static int ledpanel_row=0;
 static int pbuffer_top;
 static int pbuffer_bottom=1536;
@@ -55,14 +56,9 @@ static unsigned char rgb_buffer[MAXBUFFER_PER_PANEL];
 static unsigned char rgb_buffer_copy[MAXBUFFER_PER_PANEL];
 
 // 3 bit per color
-#define COLOR_DEPTH 8-1 // 2,4,8,16,32,64,128,256
-#define COLOR_SHIFT 5 	// How many bit shift left to redure the color depth   
+#define COLOR_MASK  0x07
 
-// 4 bit per color
-//#define COLOR_DEPTH 16-1 // 2,4,8,16,32,64,128,256
-//#define COLOR_SHIFT 4 	// How many bit shift right to redure the color depth   
-
-// 0xFFFFF400 (PIOA), 0xFFFFF600 (PIOB), 0xFFFFF800 (PIOC), 0xFFFFFA00 (PIOD
+// 0xFFFFF400 (PIOA)
 
 #define PA_SODR AT91_IO_P2V(0xFFFFF400+0x30) // PA SODR 
 #define PA_CODR AT91_IO_P2V(0xFFFFF400+0x34) // PA CODR 
@@ -161,20 +157,22 @@ const char *ledpanel_label[] = {
 // rgb_buffer is the content to show on the panel(s) in rgb 8 bit format
 static ssize_t ledpanel_rgb_buffer(struct class *class, struct class_attribute *attr, const char *buf, size_t len) {
 	int i;
-	
 	mutex_lock(&sysfs_lock);
+	
 	if ((len<=MAXBUFFER_PER_PANEL)) {
 		memset(rgb_buffer,MAXBUFFER_PER_PANEL,0);
 		memcpy(rgb_buffer,buf,len);
 	} else {
 		memcpy(rgb_buffer,buf,MAXBUFFER_PER_PANEL);
 	}		
-	
-	// Color depth reduction 
+
 	for (i=0;i<MAXBUFFER_PER_PANEL;i++) {
-		rgb_buffer[i]>>=COLOR_SHIFT;
-	}
+		rgb_buffer[i]&=COLOR_MASK;
+	}		
+
 	memcpy(rgb_buffer_copy,rgb_buffer,MAXBUFFER_PER_PANEL);
+	newframe=1;
+	
 	mutex_unlock(&sysfs_lock);
 	//printk(KERN_INFO "Buffer len %ld bytes\n", len);
 	return len;
@@ -222,123 +220,135 @@ static int ledpanel_gpio_init(void) {
 // Callback function called by the hrtimer
 enum hrtimer_restart ledpanel_hrtimer_callback(struct hrtimer *timer){
 	int col;
-	unsigned long flags;
-	
+
+	if (newframe) {
+		newframe=0;
+		ledpanel_row=0;
+		pbuffer_top=0;
+		pbuffer_bottom=1536;
+	}
+
 	for (col=0;col<32;col++) {
+
 		// RED 0
-		if (rgb_buffer[pbuffer_top+0]>=COLOR_DEPTH) {
+		if (rgb_buffer[pbuffer_top]>=COLOR_MASK) {
 			*((unsigned long *)PA_SODR) = R0_MASK;
-			rgb_buffer_copy[pbuffer_top+0]&=COLOR_DEPTH;
+			rgb_buffer_copy[pbuffer_top]&=COLOR_MASK;
 		} else { 
-			if (rgb_buffer_copy[pbuffer_top+0]==0) {
+			if (rgb_buffer_copy[pbuffer_top]==0) {
 				*((unsigned long *)PA_CODR) = R0_MASK;
 			} else {	
-				if (rgb_buffer_copy[pbuffer_top+0]==rgb_buffer[pbuffer_top+0]) {
+				if (rgb_buffer_copy[pbuffer_top]==rgb_buffer[pbuffer_top]) {
 					*((unsigned long *)PA_SODR) = R0_MASK;
 				}
 			}
-			rgb_buffer_copy[pbuffer_top+0]--;
-			rgb_buffer_copy[pbuffer_top+0]&=COLOR_DEPTH;
+			rgb_buffer_copy[pbuffer_top]--;
+			rgb_buffer_copy[pbuffer_top]&=COLOR_MASK;
 		}
+		pbuffer_top++;
 		
 		// GREEN 0
-		if (rgb_buffer[pbuffer_top+1]>=COLOR_DEPTH) {
+		if (rgb_buffer[pbuffer_top]>=COLOR_MASK) {
 			*((unsigned long *)PA_SODR) = G0_MASK;
-			rgb_buffer_copy[pbuffer_top+1]&=COLOR_DEPTH;
+			rgb_buffer_copy[pbuffer_top]&=COLOR_MASK;
 		} else { 
-			if (rgb_buffer_copy[pbuffer_top+1]==0) {
+			if (rgb_buffer_copy[pbuffer_top]==0) {
 				*((unsigned long *)PA_CODR) = G0_MASK;
 			} else {	
-				if (rgb_buffer_copy[pbuffer_top+1]==rgb_buffer[pbuffer_top+1]) {
+				if (rgb_buffer_copy[pbuffer_top]==rgb_buffer[pbuffer_top]) {
 					*((unsigned long *)PA_SODR) = G0_MASK;
 				}
 			}
-			rgb_buffer_copy[pbuffer_top+1]--;
-			rgb_buffer_copy[pbuffer_top+1]&=COLOR_DEPTH;
+			rgb_buffer_copy[pbuffer_top]--;
+			rgb_buffer_copy[pbuffer_top]&=COLOR_MASK;
 		}
+		pbuffer_top++;
 
 		// BLUE 0
-		if (rgb_buffer[pbuffer_top+2]>=COLOR_DEPTH) {
+		if (rgb_buffer[pbuffer_top]>=COLOR_MASK) {
 			*((unsigned long *)PA_SODR) = B0_MASK;
-			rgb_buffer_copy[pbuffer_top+2]&=COLOR_DEPTH;
+			rgb_buffer_copy[pbuffer_top]&=COLOR_MASK;
 		} else { 
-			if (rgb_buffer_copy[pbuffer_top+2]==0) {
+			if (rgb_buffer_copy[pbuffer_top]==0) {
 				*((unsigned long *)PA_CODR) = B0_MASK;
 			} else {	
-				if (rgb_buffer_copy[pbuffer_top+2]==rgb_buffer[pbuffer_top+2]) {
+				if (rgb_buffer_copy[pbuffer_top]==rgb_buffer[pbuffer_top]) {
 					*((unsigned long *)PA_SODR) = B0_MASK;
 				}
 			}
-			rgb_buffer_copy[pbuffer_top+2]--;
-			rgb_buffer_copy[pbuffer_top+2]&=COLOR_DEPTH;
+			rgb_buffer_copy[pbuffer_top]--;
+			rgb_buffer_copy[pbuffer_top]&=COLOR_MASK;
 		}
+		pbuffer_top++;
 
 		// RED 1
-		if (rgb_buffer[pbuffer_bottom+0]>=COLOR_DEPTH) {
+		if (rgb_buffer[pbuffer_bottom]>=COLOR_MASK) {
 			*((unsigned long *)PA_SODR) = R1_MASK;
-			rgb_buffer_copy[pbuffer_bottom+0]&=COLOR_DEPTH;
+			rgb_buffer_copy[pbuffer_bottom]&=COLOR_MASK;
 		} else { 
-			if (rgb_buffer_copy[pbuffer_bottom+0]==0) {
+			if (rgb_buffer_copy[pbuffer_bottom]==0) {
 				*((unsigned long *)PA_CODR) = R1_MASK;
 			} else {	
-				if (rgb_buffer_copy[pbuffer_bottom+0]==rgb_buffer[pbuffer_bottom+0]) {
+				if (rgb_buffer_copy[pbuffer_bottom]==rgb_buffer[pbuffer_bottom]) {
 					*((unsigned long *)PA_SODR) = R1_MASK;
 				}
 			}
-			rgb_buffer_copy[pbuffer_bottom+0]--;
-			rgb_buffer_copy[pbuffer_bottom+0]&=COLOR_DEPTH;
+			rgb_buffer_copy[pbuffer_bottom]--;
+			rgb_buffer_copy[pbuffer_bottom]&=COLOR_MASK;
 		}
+		pbuffer_bottom++;
 
 		// GREEN 1
-		if (rgb_buffer[pbuffer_bottom+1]>=COLOR_DEPTH) {
+		if (rgb_buffer[pbuffer_bottom]>=COLOR_MASK) {
 			*((unsigned long *)PA_SODR) = G1_MASK;
-			rgb_buffer_copy[pbuffer_bottom+1]&=COLOR_DEPTH;
+			rgb_buffer_copy[pbuffer_bottom]&=COLOR_MASK;
 		} else { 
-			if (rgb_buffer_copy[pbuffer_bottom+1]==0) {
+			if (rgb_buffer_copy[pbuffer_bottom]==0) {
 				*((unsigned long *)PA_CODR) = G1_MASK;
 			} else {	
-				if (rgb_buffer_copy[pbuffer_bottom+1]==rgb_buffer[pbuffer_bottom+1]) {
+				if (rgb_buffer_copy[pbuffer_bottom]==rgb_buffer[pbuffer_bottom]) {
 					*((unsigned long *)PA_SODR) = G1_MASK;
 				}
 			}
-			rgb_buffer_copy[pbuffer_bottom+1]--;
-			rgb_buffer_copy[pbuffer_bottom+1]&=COLOR_DEPTH;
+			rgb_buffer_copy[pbuffer_bottom]--;
+			rgb_buffer_copy[pbuffer_bottom]&=COLOR_MASK;
 		}
+		pbuffer_bottom++;
 
 		// BLUE 1
-		if (rgb_buffer[pbuffer_bottom+2]>=COLOR_DEPTH) {
+		if (rgb_buffer[pbuffer_bottom]>=COLOR_MASK) {
 			*((unsigned long *)PA_SODR) = B1_MASK;
-			rgb_buffer_copy[pbuffer_bottom+2]&=COLOR_DEPTH;
+			rgb_buffer_copy[pbuffer_bottom]&=COLOR_MASK;
 		} else { 
-			if (rgb_buffer_copy[pbuffer_bottom+2]==0) {
+			if (rgb_buffer_copy[pbuffer_bottom]==0) {
 				*((unsigned long *)PA_CODR) = B1_MASK;
 			} else {	
-				if (rgb_buffer_copy[pbuffer_bottom+2]==rgb_buffer[pbuffer_bottom+2]) {
+				if (rgb_buffer_copy[pbuffer_bottom]==rgb_buffer[pbuffer_bottom]) {
 					*((unsigned long *)PA_SODR) = B1_MASK;
 				}
 			}
-			rgb_buffer_copy[pbuffer_bottom+2]--;
-			rgb_buffer_copy[pbuffer_bottom+2]&=COLOR_DEPTH;
+			rgb_buffer_copy[pbuffer_bottom]--;
+			rgb_buffer_copy[pbuffer_bottom]&=COLOR_MASK;
 		}
+		pbuffer_bottom++;
 
 		CLK_HI;
 		CLK_LO;
-
-		pbuffer_top+=3;
-		pbuffer_bottom+=3;
 	}		
 
 	*((unsigned long *)PA_CODR) = (0xF << 5);
 	*((unsigned long *)PA_SODR) = (ledpanel_row << 5);
 	
-	local_irq_save(flags); // LDD 3 pag 274
+	// Stranezza: con questa istruzione funziona
 	gpio_set_value(ledpanel_gpio[LEDPANEL_OE],1);
-
+	
+	//Con questa no
+	//OE_HI;
+	
 	STB_HI;
 	STB_LO;
 	
 	OE_LO;
-	local_irq_restore(flags);
 
 	if ((++ledpanel_row)>=16) {
 		ledpanel_row=0;
@@ -346,7 +356,7 @@ enum hrtimer_restart ledpanel_hrtimer_callback(struct hrtimer *timer){
 		pbuffer_bottom=1536;
 	}
 
-	hrtimer_start(&hr_timer, ktime_set(0,25000), HRTIMER_MODE_REL);
+	hrtimer_start(&hr_timer, ktime_set(0,100000), HRTIMER_MODE_REL);
 	return HRTIMER_NORESTART;
 }
 
@@ -354,7 +364,7 @@ static int ledpanel_init(void)
 {
 	struct timespec tp;
 	
-    printk(KERN_INFO "Ledpanel2 (pwm) driver v0.03 initializing.\n");
+    printk(KERN_INFO "Ledpanel2 (pwm) driver v0.04 initializing.\n");
 
 	if (class_register(&ledpanel_class)<0) goto fail;
     
