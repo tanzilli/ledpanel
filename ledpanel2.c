@@ -1,5 +1,5 @@
 /*
- * ledpanel.2 
+ * ledpanel2
  * 
  * Simple Linux driver for a RGB led panel
  * Optimized version with brightness controll
@@ -151,7 +151,7 @@ const char *ledpanel_label[] = {
 	"OE", 
 }; 
 
-// This function is called when you write something on /sys/class/ledpanel2/rgb_buffer
+// This function is called when you write something on /sys/class/ledpanel/rgb_buffer
 // passing in *buf the incoming content
 
 // rgb_buffer is the content to show on the panel(s) in rgb 8 bit format
@@ -179,7 +179,7 @@ static ssize_t ledpanel_rgb_buffer(struct class *class, struct class_attribute *
 }
 	
 // Sysfs definitions for ledpanel class
-// For any name a file in /sys/class/ledpanel2 is created
+// For any name a file in /sys/class/ledpanel is created
 static struct class_attribute ledpanel_class_attrs[] = {
    __ATTR(rgb_buffer,   0200, NULL, ledpanel_rgb_buffer),
    __ATTR_NULL,
@@ -187,7 +187,7 @@ static struct class_attribute ledpanel_class_attrs[] = {
 
 // Name of directory created in /sys/class
 static struct class ledpanel_class = {
-  .name =        "ledpanel2",
+  .name =        "ledpanel",
   .owner =       THIS_MODULE,
   .class_attrs = ledpanel_class_attrs,
 };
@@ -364,7 +364,7 @@ static int ledpanel_init(void)
 {
 	struct timespec tp;
 	
-    printk(KERN_INFO "Ledpanel2 (pwm) driver v0.04 initializing.\n");
+    printk(KERN_INFO "Ledpanel (pwm) driver v0.05 initializing.\n");
 
 	if (class_register(&ledpanel_class)<0) goto fail;
     
@@ -400,7 +400,7 @@ static void ledpanel_exit(void)
 		gpio_free(ledpanel_gpio[i]);
 
 	class_unregister(&ledpanel_class);
-    printk(KERN_INFO "Ledpanel2 disabled.\n");
+    printk(KERN_INFO "Ledpanel disabled.\n");
 }
  
 module_init(ledpanel_init);
