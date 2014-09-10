@@ -151,6 +151,8 @@ const char *ledpanel_label[] = {
 
 // rgb_buffer is the content to show on the panel(s) in rgb 8 bit format
 static ssize_t ledpanel_rgb_buffer(struct class *class, struct class_attribute *attr, const char *buf, size_t len) {
+	int i;
+	
 	mutex_lock(&sysfs_lock);
 	if ((len<=MAXBUFFER_PER_PANEL)) {
 		memset(rgb_buffer,MAXBUFFER_PER_PANEL,0);
@@ -158,6 +160,9 @@ static ssize_t ledpanel_rgb_buffer(struct class *class, struct class_attribute *
 	} else {
 		memcpy(rgb_buffer,buf,MAXBUFFER_PER_PANEL);
 	}		
+	for (i=0;i<MAXBUFFER_PER_PANEL;i++) {
+		rgb_buffer[i]>>=5;
+	}
 	memcpy(rgb_buffer_copy,rgb_buffer,MAXBUFFER_PER_PANEL);
 	mutex_unlock(&sysfs_lock);
 	//printk(KERN_INFO "Buffer len %ld bytes\n", len);
@@ -211,38 +216,78 @@ enum hrtimer_restart ledpanel_hrtimer_callback(struct hrtimer *timer){
 	*((unsigned long *)PA_SODR) = (OE_MASK | (ledpanel_row << 5));
 	
 	for (col=0;col<32;col++) {
-
-		if (rgb_buffer[pbuffer_top+0]>0) {
-			rgb_buffer_copy[pbuffer_top+0]--;
-			if (rgb_buffer_copy[pbuffer_top+0]==0) {
-				*((unsigned long *)PA_CODR) = R0_MASK;
-			}
+		// RED0
+		
+		if (rgb_buffer_copy[pbuffer_top+0]==0) {
+			*((unsigned long *)PA_CODR) = R0_MASK;
+		} else {	
 			if (rgb_buffer_copy[pbuffer_top+0]==rgb_buffer[pbuffer_top+0]) {
 				*((unsigned long *)PA_SODR) = R0_MASK;
-				rgb_buffer_copy[pbuffer_top+0]=255;
 			}
 		}
-		
-		if (rgb_buffer[pbuffer_top+1]>0) {
-			rgb_buffer_copy[pbuffer_top+1]--;
-			if (rgb_buffer_copy[pbuffer_top+1]==0) {
-				*((unsigned long *)PA_CODR) = G0_MASK;
-			}
+		rgb_buffer_copy[pbuffer_top+0]--;
+		rgb_buffer_copy[pbuffer_top+0]&=0x07;
+
+		// GREEN0
+
+		if (rgb_buffer_copy[pbuffer_top+1]==0) {
+			*((unsigned long *)PA_CODR) = G0_MASK;
+		} else {	
 			if (rgb_buffer_copy[pbuffer_top+1]==rgb_buffer[pbuffer_top+1]) {
 				*((unsigned long *)PA_SODR) = G0_MASK;
-				rgb_buffer_copy[pbuffer_top+1]=255;			}
-		}
-
-		if (rgb_buffer[pbuffer_top+2]>0) {
-			rgb_buffer_copy[pbuffer_top+2]--;
-			if (rgb_buffer_copy[pbuffer_top+2]==0) {
-				*((unsigned long *)PA_CODR) = B0_MASK;
 			}
+		}
+		rgb_buffer_copy[pbuffer_top+1]--;
+		rgb_buffer_copy[pbuffer_top+1]&=0x07;
+
+		// BLUE0
+
+		if (rgb_buffer_copy[pbuffer_top+2]==0) {
+			*((unsigned long *)PA_CODR) = B0_MASK;
+		} else {	
 			if (rgb_buffer_copy[pbuffer_top+2]==rgb_buffer[pbuffer_top+2]) {
 				*((unsigned long *)PA_SODR) = B0_MASK;
-				rgb_buffer_copy[pbuffer_top+2]=255;			}
+			}
 		}
+		rgb_buffer_copy[pbuffer_top+2]--;
+		rgb_buffer_copy[pbuffer_top+2]&=0x07;
 
+		// RED1
+		
+		if (rgb_buffer_copy[pbuffer_bottom+0]==0) {
+			*((unsigned long *)PA_CODR) = R1_MASK;
+		} else {	
+			if (rgb_buffer_copy[pbuffer_bottom+0]==rgb_buffer[pbuffer_bottom+0]) {
+				*((unsigned long *)PA_SODR) = R1_MASK;
+			}
+		}
+		rgb_buffer_copy[pbuffer_bottom+0]--;
+		rgb_buffer_copy[pbuffer_bottom+0]&=0x07;
+
+		// GREEN1
+
+		if (rgb_buffer_copy[pbuffer_bottom+1]==0) {
+			*((unsigned long *)PA_CODR) = G1_MASK;
+		} else {	
+			if (rgb_buffer_copy[pbuffer_bottom+1]==rgb_buffer[pbuffer_bottom+1]) {
+				*((unsigned long *)PA_SODR) = G1_MASK;
+			}
+		}
+		rgb_buffer_copy[pbuffer_top+1]--;
+		rgb_buffer_copy[pbuffer_top+1]&=0x07;
+
+		// BLUE1
+
+		if (rgb_buffer_copy[pbuffer_bottom+2]==0) {
+			*((unsigned long *)PA_CODR) = B1_MASK;
+		} else {	
+			if (rgb_buffer_copy[pbuffer_bottom+2]==rgb_buffer[pbuffer_bottom+2]) {
+				*((unsigned long *)PA_SODR) = B1_MASK;
+			}
+		}
+		rgb_buffer_copy[pbuffer_bottom+2]--;
+		rgb_buffer_copy[pbuffer_bottom+2]&=0x07;
+		
 		CLK_HI;
 		CLK_LO;
 
