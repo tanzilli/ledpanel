@@ -1,11 +1,11 @@
 /*
- * ledpanel.2
+ * ledpanel.2 
  * 
  * Simple Linux driver for a RGB led panel
  * Optimized version with brightness controll
  */
 
-#include <linux/init.h>
+#include <linux/init.h> 
 #include <linux/module.h>
 #include <linux/gpio.h>
 #include <linux/delay.h>
