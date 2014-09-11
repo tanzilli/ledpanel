@@ -45,11 +45,14 @@ MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Sergio Tanzilli");
 MODULE_DESCRIPTION("Driver for RGB 32x32 LED PANEL");
  
+#define TOP_BYTE_ARRAY 		0 
+#define BOTTOM_BYTE_ARRAY 	32*16*3 
+ 
 static struct hrtimer hr_timer; 
 static int newframe=0;
 static int ledpanel_row=0;
-static int pbuffer_top;
-static int pbuffer_bottom=1536;
+static int pbuffer_top=TOP_BYTE_ARRAY;
+static int pbuffer_bottom=BOTTOM_BYTE_ARRAY;
 
 static DEFINE_MUTEX(sysfs_lock);
 static unsigned char rgb_buffer[MAXBUFFER_PER_PANEL];
@@ -154,7 +157,7 @@ const char *ledpanel_label[] = {
 // This function is called when you write something on /sys/class/ledpanel/rgb_buffer
 // passing in *buf the incoming content
 
-// rgb_buffer is the content to show on the panel(s) in rgb 8 bit format
+// rgb_buffer is the content to show on the panel(s)
 static ssize_t ledpanel_rgb_buffer(struct class *class, struct class_attribute *attr, const char *buf, size_t len) {
 	int i;
 	mutex_lock(&sysfs_lock);
@@ -167,14 +170,19 @@ static ssize_t ledpanel_rgb_buffer(struct class *class, struct class_attribute *
 	}		
 
 	for (i=0;i<MAXBUFFER_PER_PANEL;i++) {
+		rgb_buffer[i]>>=5;
 		rgb_buffer[i]&=COLOR_MASK;
-	}		
+	}	
 
 	memcpy(rgb_buffer_copy,rgb_buffer,MAXBUFFER_PER_PANEL);
 	newframe=1;
 	
 	mutex_unlock(&sysfs_lock);
-	//printk(KERN_INFO "Buffer len %ld bytes\n", len);
+	//printk(KERN_INFO "Buffer len %d bytes\n", len);
+	
+	/*for (i=BOTTOM_BYTE_ARRAY;i<BOTTOM_BYTE_ARRAY+30;i+=3) {
+		printk(KERN_INFO "Banco 2: %02X %02X %02X\n",rgb_buffer[i+0],rgb_buffer[i+1],rgb_buffer[i+2]);
+	}*/		
 	return len;
 }
 	
@@ -221,112 +229,100 @@ static int ledpanel_gpio_init(void) {
 enum hrtimer_restart ledpanel_hrtimer_callback(struct hrtimer *timer){
 	int col;
 
-	if (newframe) {
+	if (newframe==1) {
 		newframe=0;
 		ledpanel_row=0;
-		pbuffer_top=0;
-		pbuffer_bottom=1536;
+		pbuffer_top=TOP_BYTE_ARRAY;
+		pbuffer_bottom=BOTTOM_BYTE_ARRAY;
 	}
+
+	*((unsigned long *)PA_CODR) = (0xF << 5);
+	*((unsigned long *)PA_SODR) = (ledpanel_row << 5);
+
+    gpio_set_value(ledpanel_gpio[LEDPANEL_OE],1);
+	gpio_set_value(ledpanel_gpio[LEDPANEL_STB],0);
 
 	for (col=0;col<32;col++) {
 
-		// RED 0
-		if (rgb_buffer[pbuffer_top]>=COLOR_MASK) {
-			*((unsigned long *)PA_SODR) = R0_MASK;
-			rgb_buffer_copy[pbuffer_top]&=COLOR_MASK;
-		} else { 
-			if (rgb_buffer_copy[pbuffer_top]==0) {
-				*((unsigned long *)PA_CODR) = R0_MASK;
-			} else {	
-				if (rgb_buffer_copy[pbuffer_top]==rgb_buffer[pbuffer_top]) {
-					*((unsigned long *)PA_SODR) = R0_MASK;
-				}
+		//RED 0
+		if (rgb_buffer_copy[pbuffer_top]==0) {
+			*((unsigned long *)PA_CODR) = R0_MASK;
+		} else {	
+			if (rgb_buffer_copy[pbuffer_top]<=rgb_buffer[pbuffer_top]) {
+				*((unsigned long *)PA_SODR) = R0_MASK;
 			}
+		}
+		if (rgb_buffer[pbuffer_top]>0) {
 			rgb_buffer_copy[pbuffer_top]--;
 			rgb_buffer_copy[pbuffer_top]&=COLOR_MASK;
 		}
 		pbuffer_top++;
 		
-		// GREEN 0
-		if (rgb_buffer[pbuffer_top]>=COLOR_MASK) {
-			*((unsigned long *)PA_SODR) = G0_MASK;
-			rgb_buffer_copy[pbuffer_top]&=COLOR_MASK;
-		} else { 
-			if (rgb_buffer_copy[pbuffer_top]==0) {
-				*((unsigned long *)PA_CODR) = G0_MASK;
-			} else {	
-				if (rgb_buffer_copy[pbuffer_top]==rgb_buffer[pbuffer_top]) {
-					*((unsigned long *)PA_SODR) = G0_MASK;
-				}
+		//GREEN 0
+		if (rgb_buffer_copy[pbuffer_top]==0) {
+			*((unsigned long *)PA_CODR) = G0_MASK;
+		} else {	
+			if (rgb_buffer_copy[pbuffer_top]<=rgb_buffer[pbuffer_top]) {
+				*((unsigned long *)PA_SODR) = G0_MASK;
 			}
+		}
+		if (rgb_buffer[pbuffer_top]>0) {
 			rgb_buffer_copy[pbuffer_top]--;
 			rgb_buffer_copy[pbuffer_top]&=COLOR_MASK;
 		}
 		pbuffer_top++;
 
-		// BLUE 0
-		if (rgb_buffer[pbuffer_top]>=COLOR_MASK) {
-			*((unsigned long *)PA_SODR) = B0_MASK;
-			rgb_buffer_copy[pbuffer_top]&=COLOR_MASK;
-		} else { 
-			if (rgb_buffer_copy[pbuffer_top]==0) {
-				*((unsigned long *)PA_CODR) = B0_MASK;
-			} else {	
-				if (rgb_buffer_copy[pbuffer_top]==rgb_buffer[pbuffer_top]) {
-					*((unsigned long *)PA_SODR) = B0_MASK;
-				}
+		//BLUE 0
+		if (rgb_buffer_copy[pbuffer_top]==0) {
+			*((unsigned long *)PA_CODR) = B0_MASK;
+		} else {	
+			if (rgb_buffer_copy[pbuffer_top]<=rgb_buffer[pbuffer_top]) {
+				*((unsigned long *)PA_SODR) = B0_MASK;
 			}
+		}
+		if (rgb_buffer[pbuffer_top]>0) {
 			rgb_buffer_copy[pbuffer_top]--;
 			rgb_buffer_copy[pbuffer_top]&=COLOR_MASK;
 		}
 		pbuffer_top++;
 
-		// RED 1
-		if (rgb_buffer[pbuffer_bottom]>=COLOR_MASK) {
-			*((unsigned long *)PA_SODR) = R1_MASK;
-			rgb_buffer_copy[pbuffer_bottom]&=COLOR_MASK;
-		} else { 
-			if (rgb_buffer_copy[pbuffer_bottom]==0) {
-				*((unsigned long *)PA_CODR) = R1_MASK;
-			} else {	
-				if (rgb_buffer_copy[pbuffer_bottom]==rgb_buffer[pbuffer_bottom]) {
-					*((unsigned long *)PA_SODR) = R1_MASK;
-				}
+		//RED 1
+		if (rgb_buffer_copy[pbuffer_bottom]==0) {
+			*((unsigned long *)PA_CODR) = R1_MASK;
+		} else {	
+			if (rgb_buffer_copy[pbuffer_bottom]<=rgb_buffer[pbuffer_bottom]) {
+				*((unsigned long *)PA_SODR) = R1_MASK;
 			}
+		}
+		if (rgb_buffer[pbuffer_bottom]>0) {
 			rgb_buffer_copy[pbuffer_bottom]--;
 			rgb_buffer_copy[pbuffer_bottom]&=COLOR_MASK;
 		}
 		pbuffer_bottom++;
 
-		// GREEN 1
-		if (rgb_buffer[pbuffer_bottom]>=COLOR_MASK) {
-			*((unsigned long *)PA_SODR) = G1_MASK;
-			rgb_buffer_copy[pbuffer_bottom]&=COLOR_MASK;
-		} else { 
-			if (rgb_buffer_copy[pbuffer_bottom]==0) {
-				*((unsigned long *)PA_CODR) = G1_MASK;
-			} else {	
-				if (rgb_buffer_copy[pbuffer_bottom]==rgb_buffer[pbuffer_bottom]) {
-					*((unsigned long *)PA_SODR) = G1_MASK;
-				}
+		//GREEN 1
+		if (rgb_buffer_copy[pbuffer_bottom]==0) {
+			*((unsigned long *)PA_CODR) = G1_MASK;
+		} else {	
+			if (rgb_buffer_copy[pbuffer_bottom]<=rgb_buffer[pbuffer_bottom]) {
+				*((unsigned long *)PA_SODR) = G1_MASK;
 			}
+		}
+		if (rgb_buffer[pbuffer_bottom]>0) {
 			rgb_buffer_copy[pbuffer_bottom]--;
 			rgb_buffer_copy[pbuffer_bottom]&=COLOR_MASK;
 		}
 		pbuffer_bottom++;
 
-		// BLUE 1
-		if (rgb_buffer[pbuffer_bottom]>=COLOR_MASK) {
-			*((unsigned long *)PA_SODR) = B1_MASK;
-			rgb_buffer_copy[pbuffer_bottom]&=COLOR_MASK;
-		} else { 
-			if (rgb_buffer_copy[pbuffer_bottom]==0) {
-				*((unsigned long *)PA_CODR) = B1_MASK;
-			} else {	
-				if (rgb_buffer_copy[pbuffer_bottom]==rgb_buffer[pbuffer_bottom]) {
-					*((unsigned long *)PA_SODR) = B1_MASK;
-				}
+		//BLUE 1
+		if (rgb_buffer_copy[pbuffer_bottom]==0) {
+			*((unsigned long *)PA_CODR) = B1_MASK;
+		} else {	
+			if (rgb_buffer_copy[pbuffer_bottom]<=rgb_buffer[pbuffer_bottom]) {
+				*((unsigned long *)PA_SODR) = B1_MASK;
 			}
+		}
+		if (rgb_buffer[pbuffer_bottom]>0) {
 			rgb_buffer_copy[pbuffer_bottom]--;
 			rgb_buffer_copy[pbuffer_bottom]&=COLOR_MASK;
 		}
@@ -336,35 +332,26 @@ enum hrtimer_restart ledpanel_hrtimer_callback(struct hrtimer *timer){
 		CLK_LO;
 	}		
 
-	*((unsigned long *)PA_CODR) = (0xF << 5);
-	*((unsigned long *)PA_SODR) = (ledpanel_row << 5);
+    gpio_set_value(ledpanel_gpio[LEDPANEL_STB],1);
+	gpio_set_value(ledpanel_gpio[LEDPANEL_OE],0);
 	
-	// Stranezza: con questa istruzione funziona
-	gpio_set_value(ledpanel_gpio[LEDPANEL_OE],1);
-	
-	//Con questa no
-	//OE_HI;
-	
-	STB_HI;
-	STB_LO;
-	
-	OE_LO;
-
-	if ((++ledpanel_row)>=16) {
+	ledpanel_row++;
+	if (ledpanel_row>=16) {
 		ledpanel_row=0;
-		pbuffer_top=0;
-		pbuffer_bottom=1536;
+		pbuffer_top=TOP_BYTE_ARRAY;
+		pbuffer_bottom=BOTTOM_BYTE_ARRAY;
 	}
 
 	hrtimer_start(&hr_timer, ktime_set(0,100000), HRTIMER_MODE_REL);
-	return HRTIMER_NORESTART;
+	//hrtimer_start(&hr_timer, ktime_set(0,100000000), HRTIMER_MODE_REL);
+ 	return HRTIMER_NORESTART;
 }
 
 static int ledpanel_init(void)
 {
 	struct timespec tp;
 	
-    printk(KERN_INFO "Ledpanel (pwm) driver v0.05 initializing.\n");
+    printk(KERN_INFO "Ledpanel (pwm) driver v0.09 - initializing.\n");
 
 	if (class_register(&ledpanel_class)<0) goto fail;
     
