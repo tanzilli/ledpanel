@@ -1,2 +1,2 @@
-obj-m:= ledpanel.o ledpanel2.o
+obj-m:= ledpanel1.o ledpanel2.o
 
