@@ -235,13 +235,7 @@ enum hrtimer_restart ledpanel_hrtimer_callback(struct hrtimer *timer){
 		pbuffer_top=TOP_BYTE_ARRAY;
 		pbuffer_bottom=BOTTOM_BYTE_ARRAY;
 	}
-
-	*((unsigned long *)PA_CODR) = (0xF << 5);
-	*((unsigned long *)PA_SODR) = (ledpanel_row << 5);
-
-    gpio_set_value(ledpanel_gpio[LEDPANEL_OE],1);
-	gpio_set_value(ledpanel_gpio[LEDPANEL_STB],0);
-
+   
 	for (col=0;col<32;col++) {
 
 		//RED 0
@@ -332,7 +326,15 @@ enum hrtimer_restart ledpanel_hrtimer_callback(struct hrtimer *timer){
 		CLK_LO;
 	}		
 
+	// Disable the OE
+    gpio_set_value(ledpanel_gpio[LEDPANEL_OE],1);
+
+	// Change A,B,C,D
+	*((unsigned long *)PA_CODR) = (0xF << 5);
+	*((unsigned long *)PA_SODR) = (ledpanel_row << 5);
+
     gpio_set_value(ledpanel_gpio[LEDPANEL_STB],1);
+	gpio_set_value(ledpanel_gpio[LEDPANEL_STB],0);
 	gpio_set_value(ledpanel_gpio[LEDPANEL_OE],0);
 	
 	ledpanel_row++;
@@ -342,7 +344,7 @@ enum hrtimer_restart ledpanel_hrtimer_callback(struct hrtimer *timer){
 		pbuffer_bottom=BOTTOM_BYTE_ARRAY;
 	}
 
-	hrtimer_start(&hr_timer, ktime_set(0,100000), HRTIMER_MODE_REL);
+	hrtimer_start(&hr_timer, ktime_set(0,25000), HRTIMER_MODE_REL);
 	//hrtimer_start(&hr_timer, ktime_set(0,100000000), HRTIMER_MODE_REL);
  	return HRTIMER_NORESTART;
 }
@@ -351,7 +353,7 @@ static int ledpanel_init(void)
 {
 	struct timespec tp;
 	
-    printk(KERN_INFO "Ledpanel (pwm) driver v0.09 - initializing.\n");
+    printk(KERN_INFO "Ledpanel (pwm) driver v1.00 - initializing.\n");
 
 	if (class_register(&ledpanel_class)<0) goto fail;
     
