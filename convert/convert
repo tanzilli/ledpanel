@@ -1,9 +1,0 @@
-#!/bin/bash
-python convert.py $1 $2 $3
-
-filename=$(basename "$1")
-extension="${filename##*.}"
-filename="${filename%.*}"
-
-sshpass -p acmesystems scp $filename.rgb root@192.168.10.10:/root/tests
-sshpass -p acmesystems ssh root@192.168.10.10 "cd /root/tests; ./show $filename.rgb"
