@@ -1,8 +1,12 @@
 /*
  * ledpanel2
  * 
- * Simple Linux driver for a RGB led panel
- * Optimized version with brightness controll
+ * Bit banging Linux driver for RGB 32x32 led panel
+ * Optimized version with brightness control
+ * 
+ * (c) 2014 Sergio Tanzilli - tanzilli@acmesystems.it 
+ * http://www.acmesystems.it/ledpanel 
+ * 
  */
 
 #include <linux/init.h> 
@@ -36,6 +40,7 @@
 #define LEDPANEL_CLK	10
 #define LEDPANEL_STB	11
 #define LEDPANEL_OE		12
+#define LEDPANEL_TP		13
 
 #define MAXBUFFER_PER_PANEL 32*32*3
 
@@ -43,7 +48,7 @@ MODULE_LICENSE("Dual BSD/GPL");
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Sergio Tanzilli");
-MODULE_DESCRIPTION("Driver for RGB 32x32 LED PANEL");
+MODULE_DESCRIPTION("Bit banging driver for RGB 32x32 LED PANEL");
  
 #define TOP_BYTE_ARRAY 		0 
 #define BOTTOM_BYTE_ARRAY 	32*16*3 
@@ -66,23 +71,31 @@ static unsigned char rgb_buffer_copy[MAXBUFFER_PER_PANEL];
 #define PA_SODR AT91_IO_P2V(0xFFFFF400+0x30) // PA SODR 
 #define PA_CODR AT91_IO_P2V(0xFFFFF400+0x34) // PA CODR 
 
+// RGB lines for the top side
 #define R0_MASK 1 << 21
 #define G0_MASK 1 << 22
 #define B0_MASK 1 << 23
  
+// RGB lines for the bottom side
 #define R1_MASK 1 << 24
 #define G1_MASK 1 << 25
 #define B1_MASK 1 << 26
- 
+
+// Row address 
 #define A_MASK  1 << 5
 #define B_MASK  1 << 6
 #define C_MASK  1 << 7
 #define D_MASK  1 << 8
 
-#define CLK_MASK	1 << 27
-#define STB_MASK	1 << 28
-#define OE_MASK		1 << 29
+// Control signal
+#define CLK_MASK	1 << 27 // Clock (low to hi)
+#define STB_MASK	1 << 28 // Strobe (low to hi) 
+#define OE_MASK		1 << 29 // Output enable (active low)
 
+// Test point line for timing measurements
+#define TP_MASK		1 << 30 
+
+// Faster way I found to manage a GPIO line
 #define R0_HI	*((unsigned long *)PA_SODR) = (unsigned long)(R0_MASK);  
 #define R0_LO	*((unsigned long *)PA_CODR) = (unsigned long)(R0_MASK);  
 #define G0_HI	*((unsigned long *)PA_SODR) = (unsigned long)(G0_MASK);  
@@ -113,6 +126,9 @@ static unsigned char rgb_buffer_copy[MAXBUFFER_PER_PANEL];
 #define OE_HI	*((unsigned long *)PA_SODR) = (unsigned long)(OE_MASK);  
 #define OE_LO	*((unsigned long *)PA_CODR) = (unsigned long)(OE_MASK);  
 
+#define TP_HI	*((unsigned long *)PA_SODR) = (unsigned long)(TP_MASK);  
+#define TP_LO	*((unsigned long *)PA_CODR) = (unsigned long)(TP_MASK);  
+
 // Arietta G25 GPIO lines used
 // http://www.acmesystems.it/pinout_arietta
 // http://www.acmesystems.it/P6LED3232
@@ -136,6 +152,7 @@ static char ledpanel_gpio[] = {
 	27, // CLK
 	28, // STB
 	29, // OE 
+	30, // TP 
 }; 
 
 const char *ledpanel_label[] = {
@@ -152,6 +169,7 @@ const char *ledpanel_label[] = {
 	"CLK",
 	"STB",
 	"OE", 
+	"TP", 
 }; 
 
 // This function is called when you write something on /sys/class/ledpanel/rgb_buffer
@@ -186,14 +204,15 @@ static ssize_t ledpanel_rgb_buffer(struct class *class, struct class_attribute *
 	return len;
 }
 	
-// Sysfs definitions for ledpanel class
-// For any name a file in /sys/class/ledpanel is created
+// Definition of the attributes (files created in /sys/class/ledpanel) 
+// used by the ledpanel driver class and related callback function to be 
+// called when someone in user space write on this files
 static struct class_attribute ledpanel_class_attrs[] = {
    __ATTR(rgb_buffer,   0200, NULL, ledpanel_rgb_buffer),
    __ATTR_NULL,
 };
 
-// Name of directory created in /sys/class
+// Name of directory created in /sys/class for this driver
 static struct class ledpanel_class = {
   .name =        "ledpanel",
   .owner =       THIS_MODULE,
@@ -221,6 +240,7 @@ static int ledpanel_gpio_init(void) {
     gpio_set_value(ledpanel_gpio[LEDPANEL_CLK],0);
     gpio_set_value(ledpanel_gpio[LEDPANEL_STB],0);
     gpio_set_value(ledpanel_gpio[LEDPANEL_OE],1);
+    gpio_set_value(ledpanel_gpio[LEDPANEL_TP],0);
 	return 0;
 }
 
@@ -228,7 +248,9 @@ static int ledpanel_gpio_init(void) {
 // Callback function called by the hrtimer
 enum hrtimer_restart ledpanel_hrtimer_callback(struct hrtimer *timer){
 	int col;
-
+	
+	TP_HI;
+	
 	if (newframe==1) {
 		newframe=0;
 		ledpanel_row=0;
@@ -344,6 +366,7 @@ enum hrtimer_restart ledpanel_hrtimer_callback(struct hrtimer *timer){
 		pbuffer_bottom=BOTTOM_BYTE_ARRAY;
 	}
 
+	TP_LO;
 	hrtimer_start(&hr_timer, ktime_set(0,25000), HRTIMER_MODE_REL);
 	//hrtimer_start(&hr_timer, ktime_set(0,100000000), HRTIMER_MODE_REL);
  	return HRTIMER_NORESTART;
