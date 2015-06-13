@@ -1,2 +1,1 @@
-obj-m:= ledpanel1.o ledpanel2.o
-
+__obj-$(CONFIG_LEDPANEL) += ledpanel.o__

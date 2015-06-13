@@ -1,0 +1,8 @@
+config LEDPANEL
+tristate "RGB led panel bit banging driver"
+depends on ARM
+default y if ARM
+help
+  32x32 RGB led panel bit banging driver.
+  Read more on: http://www.acmesystems.it/ledpanel
+
