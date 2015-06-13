@@ -1,1 +1,1 @@
-__obj-$(CONFIG_LEDPANEL) += ledpanel.o__
+obj-$(CONFIG_LEDPANEL) += ledpanel.o
