@@ -5,25 +5,25 @@ Bit banging driver to manage a RGB led panel using the
 
 * [Video: Sliding clock](http://www.youtube.com/embed/Qszwey7jYl4)
 
-##How to install
+##Installation
 
 Move inside the __linux/drivers__ Linux source directory 
 and clone the ledpanel git repository:
 
 	$ git clone git://github.com/tanzilli/ledpanel.git
 
-add this line in __linux/driver/Makefile__:
+add the following line in __linux/driver/Makefile__:
 
 	obj-$(CONFIG_LEDPANEL)   += ledpanel/
 
-add this line in__linux/driver/Kconfig__:
+add the following line in__linux/driver/Kconfig__:
 
 	source "drivers/ledpanel/Kconfig"
 
 Run __make menuconfig__ and enable the ledpanel driver:
 
 	Device Drivers  --->
-		<M> RGB led panel bit banging driver (NEW) 
+		<*> RGB led panel bit banging driver (NEW) 
 
 and the High Resolution Timer Support:
 
@@ -31,10 +31,14 @@ and the High Resolution Timer Support:
 		Timers subsystem  --->
 			[*] High Resolution Timer Support  
 
-##How to use it
+##Using ledpanel driver from user space
 
 Create a 32x32*3 image byte array (24 bit for any pixel) and save in
-on __/sys/class/ledpanel/rgb_buffer__.
+on __/sys/class/ledpanel/rgb_buffer__ or just type:
+
+	dd if=/dev/urandom of=/sys/class/ledpanel/rgb_buffer bs=3072 count=1
+
+to show a random pattern.
 
 More examples are available on:
 
