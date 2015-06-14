@@ -31,8 +31,9 @@
 #include <linux/irqflags.h>
 
 #include <asm/io.h>
-#include <mach/at91_pio.h>
+
 #include <mach/hardware.h>
+#include <mach/cpu.h>
 
 #define LEDPANEL_R0		0
 #define LEDPANEL_G0		1
