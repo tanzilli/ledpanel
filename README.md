@@ -60,8 +60,15 @@ This program is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License version 2 as
 published by the Free Software Foundation.
 
-* [LICENSE file](./LICENSE)
+* [ * Copyright (C) 2015 Sergio Tanzilli, All Rights Reserved.
+ *
+ * sergio@tanzilli.com 
+ * http://www.acmesystems.it/ledpanel 
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ * 
+ */
 
-
-
-
+[GNU GENERAL PUBLIC LICENSE](./LICENSE)
