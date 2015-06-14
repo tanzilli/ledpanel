@@ -1,6 +1,6 @@
 #Simple Linux driver for a 32x32 RGB led panel
 
-Bit banging driver to manage a RGB led panel using the  
+Bit banging driver to manage a RGB led panel using the
 [Arieta G25 Linux Embedded SoM](http://www.acmesystems.it/arietta)
 
 * [Video: Sliding clock](http://www.youtube.com/embed/Qszwey7jYl4)
