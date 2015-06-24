@@ -91,7 +91,7 @@ static void __iomem *pioa;
 
 static ssize_t ledpanel_rgb_buffer(struct class *class, struct class_attribute *attr, const char *buf, size_t len) {
 	int i;
-	int index_pwm;
+	int index_pwm, pwm_panel;
 	
 	//mutex_lock(&sysfs_lock);
 	
@@ -109,8 +109,9 @@ static ssize_t ledpanel_rgb_buffer(struct class *class, struct class_attribute *
 	//printk(KERN_INFO "Buffer len %d bytes\n", len);
 	
 	// Convert the received RGB buffer in a "PWM" buffer
-	for (index_pwm=0;index_pwm<(32*16*BRIGHTNESS_LEVEL);) {
-		for (i=0;i<MAXBUFFER_PER_PANEL/2;i+=3) {
+	index_pwm=0;
+	for (pwm_panel=0;pwm_panel<BRIGHTNESS_LEVEL;pwm_panel++) {
+		for (i=0;i<1536;i+=3) {
 			// R0
 			if (rgb_buffer[i+0]>0) {
 				pwm_buffer[index_pwm]|=0x01;
@@ -146,6 +147,8 @@ static ssize_t ledpanel_rgb_buffer(struct class *class, struct class_attribute *
 		}	 
 	}
 	//mutex_unlock(&sysfs_lock);
+	ledpanel_row=0;
+	pwm_buffer_index=0;
 	return len;
 }
 	
@@ -192,10 +195,9 @@ enum hrtimer_restart ledpanel_hrtimer_callback(struct hrtimer *timer){
 	
 	// Strobe pulse
 	writel_relaxed(STB_MASK, pioa + PIO_SODR);
-	writel_relaxed(STB_MASK, pioa + PIO_CODR);
 
 	// Enable OE
-	writel_relaxed(OE_MASK, pioa + PIO_CODR);
+	writel_relaxed(OE_MASK | STB_MASK, pioa + PIO_CODR);
 	
 	ledpanel_row++;
 	if (ledpanel_row>=16) ledpanel_row=0;
@@ -208,10 +210,10 @@ enum hrtimer_restart ledpanel_hrtimer_callback(struct hrtimer *timer){
 	// writel_relaxed(R0_MASK, pioa + PIO_CODR);
 	// writel_relaxed(R0_MASK, pioa + PIO_SODR);
 
-	if (pwm_buffer_index>=(32*16*BRIGHTNESS_LEVEL)) 
+	if (pwm_buffer_index>=(512*BRIGHTNESS_LEVEL)) 
 		pwm_buffer_index=0;
     
-	hrtimer_start(&hr_timer, ktime_set(0,3000), HRTIMER_MODE_REL);
+	hrtimer_start(&hr_timer, ktime_set(0,12000), HRTIMER_MODE_REL);
  	return HRTIMER_NORESTART;
 }
 
@@ -219,7 +221,7 @@ static int ledpanel_init(void)
 {
 	struct timespec tp;
 	
-    printk(KERN_INFO "Ledpanel driver (%s %s) - initializing.\n",__DATE__,__TIME__);
+    printk(KERN_INFO "Ledpanel driver 0.20 (%s %s) - initializing.\n",__DATE__,__TIME__);
 
 	if (class_register(&ledpanel_class)<0) goto fail;
     
@@ -231,20 +233,10 @@ static int ledpanel_init(void)
 	writel_relaxed(ALL_MASK, pioa + PIO_OER);
 	writel_relaxed(ALL_MASK, pioa + PIO_CODR);
 	writel_relaxed(OE_MASK, pioa + PIO_SODR);
-	
-	/* Test
-	led=0;
-	for (i=0;i<BRIGHTNESS_LEVEL;i++) {
-		pwm_buffer[i*512+led]=0x7;	
-	}
-	
-	led=6;
-	for (i=0;i<BRIGHTNESS_LEVEL;i++) {
-		pwm_buffer[i*512+led]=0x38;	
-	}
-	*/
-	
-	printk(KERN_INFO "Max RGB buffer len: %d bytes\n", MAXBUFFER_PER_PANEL);
+		
+	printk(KERN_INFO "Brightness levels: %d\n", BRIGHTNESS_LEVEL);
+	printk(KERN_INFO "RGB buffer lenght: %d bytes\n", MAXBUFFER_PER_PANEL);
+	printk(KERN_INFO "PWM buffer lenght: %d bytes\n", 32*16*BRIGHTNESS_LEVEL);
 	
 	hrtimer_init(&hr_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
 	hr_timer.function = &ledpanel_hrtimer_callback;
