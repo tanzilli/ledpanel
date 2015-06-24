@@ -44,8 +44,6 @@ More examples are available on:
 
 * [Led Panel home page](http://www.acmesystems.it/ledpanel)
 
-
-
 #Where to buy:
 
 * [Acme Systems eShop](http://www.acmesystems.it/catalog_arietta)

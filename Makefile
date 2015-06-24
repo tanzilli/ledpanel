@@ -1,1 +1,1 @@
-obj-$(CONFIG_LEDPANEL) += ledpanel.o
+obj-m:= ledpanel.o
