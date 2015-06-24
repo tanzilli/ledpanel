@@ -86,8 +86,9 @@ static void __iomem *pioa;
 #define ALLWHITE_MASK	(R0_MASK | G0_MASK | B0_MASK | R1_MASK | G1_MASK | B1_MASK)
 #define ALLBLACK_MASK	~(R0_MASK | G0_MASK | B0_MASK | R1_MASK | G1_MASK | B1_MASK)
 
-// This function is called when you write something on /sys/class/ledpanel/rgb_buffer
-// passing in *buf the incoming content rgb_buffer is the content to show on the panel(s)
+// This function is called when you write the rgb contents on /sys/class/ledpanel/rgb_buffer
+// To improve the speed the rgb buffer is converted in a stream of data ready to send
+// to the LCD pannel to implements the brightness control
 
 static ssize_t ledpanel_rgb_buffer(struct class *class, struct class_attribute *attr, const char *buf, size_t len) {
 	int i;
@@ -109,6 +110,17 @@ static ssize_t ledpanel_rgb_buffer(struct class *class, struct class_attribute *
 	//printk(KERN_INFO "Buffer len %d bytes\n", len);
 	
 	// Convert the received RGB buffer in a "PWM" buffer
+	
+	// RGB buffer has one byte per color 
+	// | RRRRRRRR | GGGGGGGG | BBBBBBBB | X 32 columns x 32 rows
+	
+	// PWM buffer contain in each bye the signals to send to 
+	// the display
+	
+	// R0 G0 B0 R1 G1 B1 nc nc x 32 cols x 16 rows
+	
+	// Each group of 32x16=512 bytes is the image of part of the PWM signal
+		
 	index_pwm=0;
 	for (pwm_panel=0;pwm_panel<BRIGHTNESS_LEVEL;pwm_panel++) {
 		for (i=0;i<1536;i+=3) {
@@ -221,7 +233,7 @@ static int ledpanel_init(void)
 {
 	struct timespec tp;
 	
-    printk(KERN_INFO "Ledpanel driver 0.20 (%s %s) - initializing.\n",__DATE__,__TIME__);
+    printk(KERN_INFO "Ledpanel driver 1.00 - initializing.\n");
 
 	if (class_register(&ledpanel_class)<0) goto fail;
     
