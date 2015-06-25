@@ -113,18 +113,20 @@ static ssize_t ledpanel_rgb_buffer(struct class *class, struct class_attribute *
 	}		
 	//printk(KERN_INFO "Buffer len %d bytes\n", len);
 	
-	// Convert the received RGB buffer in a "PWM" buffer
+	// Convert the received RGB buffer in PWM buffer
 	
-	// RGB buffer has one byte per color 
-	// | RRRRRRRR | GGGGGGGG | BBBBBBBB | X 32 columns x 32 rows
+	// RGB buffer is the image to show in RGB 8+8+8 format 
 	
-	// PWM buffer contain in each bye the signals to send to 
-	// the display
+	// | 1 byte red | 1 byte green | 1 byte blue | X 32 columns x 32 rows
 	
-	// R0 G0 B0 R1 G1 B1 nc nc x 32 cols x 16 rows
+	// PWM buffer contain the "scene" to send to the led matrix.
+	// Each byte contains | -- -- B1 G1 R1 B0 G0 R0 |
+	// Each scene is 512 bytes lenght 
+	// (32x32 (leds) x3 (color) / 6 (line for 2 leds) = 512)
 	
-	// Each group of 32x16=512 bytes is the image of part of the PWM signal
-		
+	// To have 16 brightness level this driver sents to the panel
+	// a stream of 16 scene so 512x16 = 8.192 byte 
+				
 	index_pwm=0;
 	for (pwm_panel=0;pwm_panel<BRIGHTNESS_LEVEL;pwm_panel++) {
 		for (i=0;i<1536;i+=3) {
