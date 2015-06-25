@@ -10,6 +10,10 @@
  * sergio@tanzilli.com 
  * http://www.acmesystems.it/ledpanel 
  *
+ * Many thanks to 
+ * Alexandre Belloni <alexandre.belloni@free-electrons.com>
+ * for his contribute
+ *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
  * published by the Free Software Foundation.
@@ -207,9 +211,7 @@ enum hrtimer_restart ledpanel_hrtimer_callback(struct hrtimer *timer){
 	
 	// Strobe pulse
 	writel_relaxed(STB_MASK, pioa + PIO_SODR);
-
-	// Enable OE
-	writel_relaxed(OE_MASK | STB_MASK, pioa + PIO_CODR);
+	writel_relaxed(STB_MASK, pioa + PIO_CODR);
 	
 	ledpanel_row++;
 	if (ledpanel_row>=16) ledpanel_row=0;
@@ -224,6 +226,9 @@ enum hrtimer_restart ledpanel_hrtimer_callback(struct hrtimer *timer){
 
 	if (pwm_buffer_index>=(512*BRIGHTNESS_LEVEL)) 
 		pwm_buffer_index=0;
+
+	// Enable OE
+	writel_relaxed(OE_MASK, pioa + PIO_CODR);
     
 	hrtimer_start(&hr_timer, ktime_set(0,12000), HRTIMER_MODE_REL);
  	return HRTIMER_NORESTART;
