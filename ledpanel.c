@@ -207,7 +207,7 @@ enum hrtimer_restart ledpanel_hrtimer_callback(struct hrtimer *timer){
  	//Disable OE
 	writel_relaxed(OE_MASK, pioa + PIO_SODR);
 
-	// Increment address on A,B,C,D
+	// Send address on A,B,C,D lines
 	writel_relaxed(0xF << 5, pioa + PIO_CODR);
 	writel_relaxed(ledpanel_row << 5, pioa + PIO_SODR);
 
