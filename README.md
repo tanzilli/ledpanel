@@ -1,4 +1,4 @@
-#Simple Linux driver for a 32x32 RGB led panel
+#Linux driver for a 32x32 RGB led panel
 
 Bit banging driver to manage a RGB led panel using the
 [Arieta G25 Linux Embedded SoM](http://www.acmesystems.it/arietta)
