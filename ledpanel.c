@@ -50,13 +50,17 @@ MODULE_LICENSE("Dual BSD/GPL");
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Sergio Tanzilli");
-MODULE_DESCRIPTION("Bit banging driver for RGB 32x32 LED PANEL");
+MODULE_DESCRIPTION("Bit banging driver for multiple RGB 32x32 LED PANEL");
 
 static struct hrtimer hr_timer;   // scheduler for panel refresh
 static int ledpanel_row=0;        // used in panel refresh
 
 static unsigned char *rgb_buffer; // [MAXBUFFER_PER_PANEL];
 static unsigned char *pwm_buffer; // [64*16*BRIGHTNESS_LEVEL];
+static unsigned char *pwm_buffer_0; // [64*16*BRIGHTNESS_LEVEL];
+static unsigned char *pwm_buffer_1; // [64*16*BRIGHTNESS_LEVEL];
+
+
 static int rgb_buffer_size = 0;
 static int rgb_buffer_len  = 0;
 static int pwm_buffer_size = 0;
@@ -137,8 +141,7 @@ MODULE_PARM_DESC(height, "Panel height in pixels.");
 
 static ssize_t ledpanel_rgb_buffer(struct class *class, struct class_attribute *attr, const char *buf, size_t len) {
 
-//printk(KERN_INFO "len: %d ofs:%d\n", len, ofs);
-
+	//printk(KERN_INFO "len: %d size:%d buf len: %d\n", len, rgb_buffer_size, rgb_buffer_len);
 
 	if ((len <= (rgb_buffer_size - rgb_buffer_len))) {
 		memcpy(rgb_buffer+rgb_buffer_len,buf,len);
@@ -150,8 +153,19 @@ static ssize_t ledpanel_rgb_buffer(struct class *class, struct class_attribute *
 	if (rgb_buffer_len >= rgb_buffer_size) {
 		int index_pwm=0;
 		int pwm_panel, i;
+		unsigned char *pwm_buffer_loc;
 
 		rgb_buffer_len = 0;
+
+		if (pwm_buffer == 0) {
+			// no buffer currently in use, select the first one
+			pwm_buffer_loc = pwm_buffer_0;
+		} else
+		if (pwm_buffer == pwm_buffer_0) {
+			pwm_buffer_loc = pwm_buffer_1;
+		}  else
+			pwm_buffer_loc = pwm_buffer_0;
+
 
 		//printk(KERN_INFO "Buffer len %d bytes\n", len);
 
@@ -169,39 +183,39 @@ static ssize_t ledpanel_rgb_buffer(struct class *class, struct class_attribute *
 		// To have 16 brightness level this driver sents to the panel
 		// a stream of 16 scene so 512x16 = 8.192 byte
 
-		memset(pwm_buffer, 0, pwm_buffer_size);
+		memset(pwm_buffer_loc, 0, pwm_buffer_size);
 
 		for (pwm_panel=0;pwm_panel<BRIGHTNESS_LEVEL;pwm_panel++) {
 			for (i=0; i < ((width*height*3)/2); i+=3) {
 				// R0
 				if (rgb_buffer[i+0]>0) {
-					pwm_buffer[index_pwm]|=0x01;
+					pwm_buffer_loc[index_pwm]|=0x01;
 					rgb_buffer[i+0]--;
 				}
 				// G0
 				if (rgb_buffer[i+1]>0) {
-					pwm_buffer[index_pwm]|=0x02;
+					pwm_buffer_loc[index_pwm]|=0x02;
 					rgb_buffer[i+1]--;
 				}
 				// B0
 				if (rgb_buffer[i+2]>0) {
-					pwm_buffer[index_pwm]|=0x04;
+					pwm_buffer_loc[index_pwm]|=0x04;
 					rgb_buffer[i+2]--;
 				}
 
 				// R1
 				if (rgb_buffer[i+0+((width*height*3)/2)]>0) {
-					pwm_buffer[index_pwm]|=0x08;
+					pwm_buffer_loc[index_pwm]|=0x08;
 					rgb_buffer[i+0+((width*height*3)/2)]--;
 				}
 				// G1
 				if (rgb_buffer[i+1+((width*height*3)/2)]>0) {
-					pwm_buffer[index_pwm]|=0x10;
+					pwm_buffer_loc[index_pwm]|=0x10;
 					rgb_buffer[i+1+((width*height*3)/2)]--;
 				}
 				// B1
 				if (rgb_buffer[i+2+((width*height*3)/2)]>0) {
-					pwm_buffer[index_pwm]|=0x20;
+					pwm_buffer_loc[index_pwm]|=0x20;
 					rgb_buffer[i+2+((width*height*3)/2)]--;
 				}
 				index_pwm++;
@@ -210,6 +224,7 @@ static ssize_t ledpanel_rgb_buffer(struct class *class, struct class_attribute *
 		//mutex_unlock(&sysfs_lock);
 		ledpanel_row=0;
 		pwm_buffer_index=0;
+		pwm_buffer = pwm_buffer_loc;
 	}
 	return len;
 }
@@ -227,54 +242,58 @@ __inline__ void nop_sleep(unsigned long clk_cycs) {
 
 // Send a new row the panel
 // Callback function called by the hrtimer each 67uS
-enum hrtimer_restart ledpanel_hrtimer_callback(struct hrtimer *timer){
-	int col;
-	for (col=0; col < width; col++) {
-		writel_relaxed(ALLWHITE_MASK, pioa + PIO_CODR);
+enum hrtimer_restart ledpanel_hrtimer_callback(struct hrtimer *timer)
+{
+	if (pwm_buffer) {
+		int col;
+		for (col=0; col < width; col++) {
+			writel_relaxed(ALLWHITE_MASK, pioa + PIO_CODR);
 
-		//Test all led white
-		//writel_relaxed(ALLWHITE_MASK, pioa + PIO_SODR);
+			//Test all led white
+			//writel_relaxed(ALLWHITE_MASK, pioa + PIO_SODR);
 
-		writel_relaxed(pwm_buffer[pwm_buffer_index]<<21, pioa + PIO_SODR);
+			writel_relaxed(pwm_buffer[pwm_buffer_index]<<21, pioa + PIO_SODR);
 
-		pwm_buffer_index++;
+			pwm_buffer_index++;
 
-		// Send a clock pulse
-		writel_relaxed(CLK_MASK, pioa + PIO_SODR);
-		writel_relaxed(CLK_MASK, pioa + PIO_CODR);
- 	}
+			// Send a clock pulse
+			writel_relaxed(CLK_MASK, pioa + PIO_SODR);
+			writel_relaxed(CLK_MASK, pioa + PIO_CODR);
+		}
 
- 	//Disable OE
-	writel_relaxed(OE_MASK, pioa + PIO_SODR);
+		//Disable OE
+		writel_relaxed(OE_MASK, pioa + PIO_SODR);
 
-	// Send address on A,B,C,D lines
-	writel_relaxed(0xF << 5, pioa + PIO_CODR);
-	writel_relaxed(ledpanel_row << 5, pioa + PIO_SODR);
+		// Send address on A,B,C,D lines
+		writel_relaxed(0xF << 5, pioa + PIO_CODR);
+		writel_relaxed(ledpanel_row << 5, pioa + PIO_SODR);
 
-	// Strobe pulse
-	writel_relaxed(STB_MASK, pioa + PIO_SODR);
-	writel_relaxed(STB_MASK, pioa + PIO_CODR);
+		// Strobe pulse
+		writel_relaxed(STB_MASK, pioa + PIO_SODR);
+		writel_relaxed(STB_MASK, pioa + PIO_CODR);
 
-	ledpanel_row++;
-	if (ledpanel_row>=16) ledpanel_row=0;
+		ledpanel_row++;
+		if (ledpanel_row>=16) ledpanel_row=0;
 
-	// Impulso da 456nS
-	// gpio_set_value(ledpanel_gpio[LEDPANEL_R0],1);
-	// gpio_set_value(ledpanel_gpio[LEDPANEL_R0],0);
+		// Impulso da 456nS
+		// gpio_set_value(ledpanel_gpio[LEDPANEL_R0],1);
+		// gpio_set_value(ledpanel_gpio[LEDPANEL_R0],0);
 
-	// Impulso da 38nS
-	// writel_relaxed(R0_MASK, pioa + PIO_CODR);
-	// writel_relaxed(R0_MASK, pioa + PIO_SODR);
+		// Impulso da 38nS
+		// writel_relaxed(R0_MASK, pioa + PIO_CODR);
+		// writel_relaxed(R0_MASK, pioa + PIO_SODR);
 
-	if (pwm_buffer_index>= pwm_buffer_size)
-		pwm_buffer_index=0;
+		if (pwm_buffer_index>= pwm_buffer_size)
+			pwm_buffer_index=0;
 
-	// Enable OE
-	writel_relaxed(OE_MASK, pioa + PIO_CODR);
-
+		// Enable OE
+		writel_relaxed(OE_MASK, pioa + PIO_CODR);
+	}
 	hrtimer_start(&hr_timer, ktime_set(0,12000), HRTIMER_MODE_REL);
  	return HRTIMER_NORESTART;
 }
+
+
 
 static int ledpanel_init(void)
 {
@@ -282,7 +301,7 @@ static int ledpanel_init(void)
 
 	width = MOD_W * nmodule ;
 
-	printk(KERN_INFO "Ledpanel driver 2.00 - initializing.\n");
+	printk(KERN_INFO "Ledpanel driver 2.10 - initializing.\n");
 
 	if ((rc=class_register(&ledpanel_class))<0) goto fail;
 
@@ -290,14 +309,18 @@ static int ledpanel_init(void)
 	rgb_buffer = kmalloc (rgb_buffer_size, GFP_KERNEL);
 	if (rgb_buffer == 0) goto fail_nomem;
 
+	pwm_buffer = 0;
 	pwm_buffer_size = width * (height/2) * BRIGHTNESS_LEVEL;
-	pwm_buffer = kmalloc (pwm_buffer_size, GFP_KERNEL);
-	if (pwm_buffer == 0) goto fail_nomem;
+	pwm_buffer_0 = kmalloc (pwm_buffer_size, GFP_KERNEL);
+	if (pwm_buffer_0 == 0) goto fail_nomem;
+	pwm_buffer_1 = kmalloc (pwm_buffer_size, GFP_KERNEL);
+	if (pwm_buffer_1 == 0) goto fail_nomem;
 
 	//rgb buffer clean up
 	memset(rgb_buffer,0,rgb_buffer_size);
 	//pwm buffer clean up
-	memset(pwm_buffer,0,pwm_buffer_size);
+	memset(pwm_buffer_0,0,pwm_buffer_size);
+	memset(pwm_buffer_1,0,pwm_buffer_size);
 
 	pioa = ioremap(0xFFFFF400, 0x200);
 	writel_relaxed(ALL_MASK, pioa + PIO_PER);
@@ -305,7 +328,7 @@ static int ledpanel_init(void)
 	writel_relaxed(ALL_MASK, pioa + PIO_CODR);
 	writel_relaxed(OE_MASK, pioa + PIO_SODR);
 
-	printk(KERN_INFO "Ledpanel driver 2.00 - width: %d height: %d.\n", width, height);
+	printk(KERN_INFO "Ledpanel driver 2.10 - width: %d height: %d.\n", width, height);
 
 	printk(KERN_INFO "Brightness levels: %d\n", BRIGHTNESS_LEVEL);
 	printk(KERN_INFO "RGB buffer lenght: %d bytes\n", rgb_buffer_size);
@@ -332,8 +355,10 @@ fail:
 	return -1;
 fail_nomem:
 	printk(KERN_INFO "Ledpanel error: no enough memory.\n");
+	class_unregister(&ledpanel_class);
 	return -1;
 }
+
 
 static void ledpanel_exit(void)
 {
@@ -342,9 +367,10 @@ static void ledpanel_exit(void)
 	iounmap(pioa);
 	class_unregister(&ledpanel_class);
 	if (rgb_buffer) kfree(rgb_buffer);
-	if (pwm_buffer) kfree(pwm_buffer);
+	if (pwm_buffer_0) kfree(pwm_buffer_0);
+	if (pwm_buffer_1) kfree(pwm_buffer_1);
+	pwm_buffer = 0;
 	printk(KERN_INFO "Ledpanel disabled.\n");
 }
-
 module_init(ledpanel_init);
 module_exit(ledpanel_exit);
