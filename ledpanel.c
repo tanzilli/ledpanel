@@ -222,8 +222,8 @@ static ssize_t ledpanel_rgb_buffer(struct class *class, struct class_attribute *
 			}
 		}
 		//mutex_unlock(&sysfs_lock);
-		ledpanel_row=0;
-		pwm_buffer_index=0;
+		//ledpanel_row=0;
+		//pwm_buffer_index=0;
 		pwm_buffer = pwm_buffer_loc;
 	}
 	return len;
